@@ -38,7 +38,7 @@ class MessageHistory:
         self.__message_history.append({"role": role, "content": content})
 
         with open(self.save_path, "a") as f:
-            f.write("----- {} -----\n".format(role))
+            f.write("========== @{} ==========\n".format(role))
             f.write(content + "\n")
 
     def load_history(self, path):
@@ -52,7 +52,7 @@ class MessageHistory:
                 line = f.readline()
                 if not line:
                     break
-                match = re.search(r"^-{5}\s(\w+)\s-{5}$", line)
+                match = re.search(r"^={10}\s@([^\s=]+)\s={10}$", line)
                 if match:
                     if role is not None:
                         self.__message_history.append({"role": role, "content": content})
