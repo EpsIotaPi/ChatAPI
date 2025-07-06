@@ -80,7 +80,7 @@ class Conversation:
         base_url = "https://api.deepseek.com"
         self.client = OpenAI(api_key=deepseek_api_key, base_url=base_url)
 
-    def send(self, message):
+    def send(self, message, output_prefix="助手："):
         self.history.user_message(message)
         response = self.client.chat.completions.create(
             messages=self.history.get_messages(),
@@ -88,9 +88,9 @@ class Conversation:
             stream=self.stream
         )
 
-        self.response_handler(response)
+        self.__response_handler(response, output_prefix)
 
-    def response_handler(self, response, output_prefix="助手："):
+    def __response_handler(self, response, output_prefix="助手："):
         print(output_prefix, end="")
         if self.stream:
             full_reply = ""
