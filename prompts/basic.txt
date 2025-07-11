@@ -1,0 +1,4 @@
+========== #english ==========
+You are a helpful assistant
+========== #chinese ==========
+你是一位得力的助手

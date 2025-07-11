@@ -1,5 +1,8 @@
 import os, re
+from typing import Union
+
 from openai import OpenAI
+from prompts.PromptLibrary import Prompt
 
 
 class MessageHistory:
@@ -7,7 +10,9 @@ class MessageHistory:
     prompt: str
     save_path: str
 
-    def __init__(self, prompt="You are a helpful assistant", save_path=None):
+    def __init__(self, prompt:Union[str, Prompt], save_path=None):
+        self.first_call = True
+
         if save_path is None:
             idx = 1
             possible_path = os.path.join("./history", f"conversation_{idx}.txt")
@@ -23,12 +28,17 @@ class MessageHistory:
             self.prompt = prompt
 
             self.__message_history = []
-            self.__save_content(role="system", content=self.prompt)
 
     def get_messages(self) -> list:
         return self.__message_history
 
     def user_message(self, message: str):
+        if self.first_call:
+            self.first_call = False
+            if isinstance(self.prompt, Prompt):
+                pass
+            self.__save_content(role="system", content=self.prompt)
+
         self.__save_content(role="user", content=message)
 
     def assistant_message(self, message: str):
@@ -45,6 +55,7 @@ class MessageHistory:
         self.__message_history = []
         self.save_path = path
         self.prompt = ""
+        self.first_call = False
 
         with open(self.save_path, "r") as f:
             role = None
@@ -64,13 +75,14 @@ class MessageHistory:
                     role = match.group(1)
                 else:
                     content += line
+                self.__message_history.append({"role": role, "content": content})
 
 
 class Conversation:
     history: MessageHistory
 
     def __init__(self, model="deepseek-chat", stream=False,
-                 prompt="You are a helpful assistant", history_save_path=None):
+                 prompt: Union[str, Prompt] = "You are a helpful assistant", history_save_path=None):
         self.model = model
         self.stream = stream
 
@@ -106,5 +118,3 @@ class Conversation:
             print(full_reply)
 
         self.history.assistant_message(full_reply)
-
-
