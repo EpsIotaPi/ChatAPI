@@ -100,7 +100,7 @@ class Conversation:
             stream=self.stream
         )
 
-        self.__response_handler(response, output_prefix)
+        return self.__response_handler(response, output_prefix)
 
     def __response_handler(self, response, output_prefix="助手："):
         print(output_prefix, end="")
@@ -118,3 +118,4 @@ class Conversation:
             print(full_reply)
 
         self.history.assistant_message(full_reply)
+        return full_reply
