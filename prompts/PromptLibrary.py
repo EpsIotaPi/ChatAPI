@@ -1,11 +1,12 @@
 import os, re
 
+
 class Prompt:
     __lang_code_list = ["chi", "eng", "jpn"]
 
     def __init__(self, file_path):
         if not os.path.isfile(file_path):
-            self.file_path = os.path.join("./prompts", file_path+".txt")
+            self.file_path = os.path.join("./prompts", file_path + ".txt")
         else:
             self.file_path = file_path
         self.__prompt = {}
