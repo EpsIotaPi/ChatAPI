@@ -3,7 +3,7 @@ from typing import Union
 
 from openai import OpenAI
 from prompts.PromptLibrary import Prompt
-
+from pathlib import Path
 
 class MessageHistory:
     __message_history = []
@@ -50,6 +50,30 @@ class MessageHistory:
         with open(self.save_path, "a") as f:
             f.write("========== @{} ==========\n".format(role))
             f.write(content + "\n")
+
+    def save_spilt_history(self, dir_path=None):
+        if dir_path is None:
+            path = Path(self.save_path)
+            dir_path = path.with_suffix("")
+
+        dir_path.mkdir(parents=True, exist_ok=False)
+
+        user_msg = ""
+        idx = 1
+        for message in self.__message_history:
+            role = message["role"]
+            if role == "user":
+                user_msg = message["content"]
+            elif role == "assistant":
+                file_name = "{}.md".format(idx)
+                with open(os.path.join(dir_path, file_name), "a") as f:
+                    f.write("""---\nindex: {} \npromp: {}\nuser_message: {}---\n""".format(idx, self.prompt, user_msg))
+                    f.write(message["content"])
+                idx += 1
+
+        with open(os.path.join(dir_path, "history.txt"), "a") as f:
+            with open(self.save_path, "r") as sf:
+                f.write(sf.read())
 
     def load_history(self, path):
         self.__message_history = []
