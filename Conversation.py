@@ -75,7 +75,7 @@ class MessageHistory:
                     role = match.group(1)
                 else:
                     content += line
-                self.__message_history.append({"role": role, "content": content})
+            self.__message_history.append({"role": role, "content": content})
 
 
 class Conversation:
