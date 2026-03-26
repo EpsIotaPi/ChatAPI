@@ -112,9 +112,9 @@ class Conversation:
 
         self.history = MessageHistory(prompt, history_save_path)
 
-        deepseek_api_key = os.getenv("DEEPSEEK_API_KEY")
-        base_url = "https://api.deepseek.com"
-        self.client = OpenAI(api_key=deepseek_api_key, base_url=base_url)
+        api_key = os.getenv("API_KEY")
+        base_url = os.getenv("LLM_URL")
+        self.client = OpenAI(api_key=api_key, base_url=base_url)
 
     def send(self, message, output_prefix="助手："):
         self.history.user_message(message)
