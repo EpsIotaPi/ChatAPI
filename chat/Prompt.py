@@ -2,7 +2,7 @@ import json
 
 
 class PromptManager(object):
-    def __init__(self,  file_path="./chat/prompt/prompts.json"):
+    def __init__(self,  file_path="./prompts/prompts.json"):
         self._prompt_library = json.load(open(file_path, "r"))["prompts"]
         self.prompt_keys = list(self._prompt_library.keys())
 

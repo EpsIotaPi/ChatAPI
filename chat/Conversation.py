@@ -2,7 +2,7 @@ import os, re
 from typing import Union
 
 from openai import OpenAI
-from prompts.PromptLibrary import Prompt
+from Prompt import Prompt
 from pathlib import Path
 
 class MessageHistory:
@@ -15,10 +15,10 @@ class MessageHistory:
 
         if save_path is None:
             idx = 1
-            possible_path = os.path.join("./history", f"conversation_{idx}.txt")
+            possible_path = os.path.join("history", f"conversation_{idx}.txt")
             while os.path.exists(possible_path):
                 idx += 1
-                possible_path = os.path.join("./history", f"conversation_{idx}.txt")
+                possible_path = os.path.join("history", f"conversation_{idx}.txt")
             save_path = possible_path
 
         if os.path.exists(save_path):
