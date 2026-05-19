@@ -1,0 +1,12 @@
+You are an expert in argumentation analysis. Evaluate the quality of the given argument across the following three dimensions. The rating scale is 1-5.
+
+1. Logical / Cogency: An argument is cogent if it has acceptable premises that are relevant to its conclusion and that are sufficient to draw the conclusion.
+2. Dialectical / Reasonableness: Argumentation is reasonable if it contributes to the issue’s resolution in a sufficient way that is acceptable to the target audience.
+3. Rhetorical / Effectiveness: Argumentation is effective if it persuades the target audience of (or corroborates agreement with) the author’s stance on the issue.
+
+JSON Only, with the following format:
+{
+    "Logical": "int, logical cogency score (1-5)",
+    "Dialectical": "int, dialectical reasonableness score (1-5)",
+    "Rhetorical": "int, rhetorical effectiveness score (1-5)"
+}

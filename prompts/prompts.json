@@ -1,0 +1,30 @@
+{
+  "version": "1.0",
+  "prompts": {
+    "test": {
+      "description": "对聊天内容进行总结",
+      "variables": ["content"],
+      "languages": {
+        "en": {
+          "system": "You are a professional summarization assistant.",
+          "user": "Please summarize the following content:\n{{content}}"
+        },
+        "zh": {
+          "system": "你是一个专业的总结助手。",
+          "user": "请总结以下内容：\n{{content}}"
+        }
+      }
+    },
+    "AQ_Joint": {
+      "description": "Argument Quality Assessment: Joint",
+      "variables": ["text"],
+      "json_object": true,
+      "languages": {
+        "en": {
+          "path_system": "./chat/prompt/quality_prompt_LDR.en.txt",
+          "user": "Evaluate the argument quality of the following text: \n{{text}}"
+        }
+      }
+    }
+  }
+}
