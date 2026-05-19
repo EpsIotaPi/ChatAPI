@@ -1,133 +1,176 @@
-import os, re
-from typing import Union
+import json, uuid, random
+from typing import Union, Optional
+from pathlib import Path
+from datetime import datetime, UTC
 
 from openai import OpenAI
-from Prompt import Prompt
-from pathlib import Path
+
+from chat.Prompt import Prompt
+from chat.HyperParams import ModelHyperParams
+from chat.Connection import ConnectionParams
+
+
+def utc_timestamp() -> str:
+    return (
+        datetime.now(UTC)
+        .replace(microsecond=0)
+        .isoformat()
+        .replace("+00:00", "Z")
+    )
+
+SEED = random.randint(0, 2**32 - 1)
+
 
 class MessageHistory:
-    __message_history = []
-    prompt: str
-    save_path: str
+    model_hp: ModelHyperParams
+    _session_content: dict = None
 
-    def __init__(self, prompt:Union[str, Prompt], save_path=None):
-        self.first_call = True
+    def __init__(self, hp: ModelHyperParams):
+        self.model_hp = hp
 
-        if save_path is None:
-            idx = 1
-            possible_path = os.path.join("history", f"conversation_{idx}.txt")
-            while os.path.exists(possible_path):
-                idx += 1
-                possible_path = os.path.join("history", f"conversation_{idx}.txt")
-            save_path = possible_path
+    def init_session(self, session_title="New Session", language="en"):
+        if self._session_content is not None:
+            raise Exception("MessageHistory already init")
+        timestamp = utc_timestamp()
+        self._session_content = {
+            "version": "1.0",
+            "session": {
+                "id": "new_sess_{}".format(uuid.uuid4()),
+                "title": session_title,
+                "created_at": timestamp,
+                "updated_at": timestamp
+            },
 
-        if os.path.exists(save_path):
-            self.load_history(save_path)
-        else:
-            self.save_path = save_path
-            self.prompt = prompt
+            "metadata": {
+                "prompt_name": None,
+                "model": self.model_hp.model,
+                "language": language,
+                "hp": self.model_hp.record()
+            },
 
-            self.__message_history = []
+            "messages": []
+        }
 
-    def get_messages(self) -> list:
-        return self.__message_history
+    def system_prompt(self, sys_prompt: str, prompt_name=None):
+        if prompt_name is not None:
+            self._session_content["metadata"]["prompt_name"] = prompt_name
+        self._session_content["messages"].append({
+            "id": "sys_000",
+            "role": "system",
+            "content": sys_prompt,
+            "created_at": utc_timestamp()
+        })
+
+    @classmethod
+    def load(cls, data: Union[str, Path, dict]):
+        if not isinstance(data, dict):
+            with open(data, "r") as f:
+                data = json.load(f)
+
+        data["session"]["updated_at"] = utc_timestamp()
+
+        metadata = data["metadata"]
+
+        lang = metadata["language"]
+
+        model = metadata["model"]
+
+        hp_record = metadata["hp"]
+
+        model_hp = ModelHyperParams.from_record(model, hp_record)
+
+        obj = cls(hp=model_hp)
+
+        obj._session_content = data
+
+        return obj
+
+    def _save_message(self, role, message):
+        data = {
+            "id": "msg_{:03d}".format(len(self._session_content["messages"])),
+            "role": role,
+            "content": message,
+            "created_at": utc_timestamp(),
+        }
+        self._session_content["messages"].append(data)
 
     def user_message(self, message: str):
-        if self.first_call:
-            self.first_call = False
-            if isinstance(self.prompt, Prompt):
-                pass
-            self.__save_content(role="system", content=self.prompt)
-
-        self.__save_content(role="user", content=message)
+        self._save_message(role="user", message=message)
 
     def assistant_message(self, message: str):
-        self.__save_content(role="assistant", content=message)
+        self._save_message(role="assistant", message=message)
 
-    def __save_content(self, role: str, content: str):
-        self.__message_history.append({"role": role, "content": content})
+    def session_content(self):
+        return self._session_content
 
-        with open(self.save_path, "a") as f:
-            f.write("========== @{} ==========\n".format(role))
-            f.write(content + "\n")
-
-    def save_spilt_history(self, dir_path=None):
-        if dir_path is None:
-            path = Path(self.save_path)
-            dir_path = path.with_suffix("")
-
-        dir_path.mkdir(parents=True, exist_ok=False)
-
-        user_msg = ""
-        idx = 1
-        for message in self.__message_history:
-            role = message["role"]
-            if role == "user":
-                user_msg = message["content"]
-            elif role == "assistant":
-                file_name = "{}.md".format(idx)
-                with open(os.path.join(dir_path, file_name), "a") as f:
-                    f.write("""---\nindex: {} \npromp: {}\nuser_message: {}---\n""".format(idx, self.prompt, user_msg))
-                    f.write(message["content"])
-                idx += 1
-
-        with open(os.path.join(dir_path, "history.txt"), "a") as f:
-            with open(self.save_path, "r") as sf:
-                f.write(sf.read())
-
-    def load_history(self, path):
-        self.__message_history = []
-        self.save_path = path
-        self.prompt = ""
-        self.first_call = False
-
-        with open(self.save_path, "r") as f:
-            role = None
-            while True:
-                line = f.readline()
-                if not line:
-                    break
-                match = re.search(r"^={10}\s@([^\s=]+)\s={10}$", line)
-                if match:
-                    if role is not None:
-                        self.__message_history.append({"role": role, "content": content})
-
-                    if role == "system":
-                        self.prompt = content
-
-                    content = ""
-                    role = match.group(1)
-                else:
-                    content += line
-            self.__message_history.append({"role": role, "content": content})
+    def messages(self):
+        return self._session_content["messages"]
 
 
 class Conversation:
     history: MessageHistory
+    stream: bool
+    silence_mode: bool
+    last_reply: str = ""
 
-    def __init__(self, model="deepseek-chat", stream=False,
-                 prompt: Union[str, Prompt] = "You are a helpful assistant", history_save_path=None):
-        self.model = model
+    def __init__(self, hp: ModelHyperParams, connection: ConnectionParams,
+                 stream=False, silence=False,
+                 json_object: bool = False):
+
+        self.history = MessageHistory(hp)
+        self.model_hp = self.history.model_hp
+
         self.stream = stream
+        self.silence_mode = silence
+        self.response_format = {"type": "text"}
+        if json_object:
+            self.response_format = {"type": "json"}
 
-        self.history = MessageHistory(prompt, history_save_path)
+        self.client = OpenAI(api_key=connection.api_key, base_url=connection.base_url)
 
-        api_key = os.getenv("API_KEY")
-        base_url = os.getenv("LLM_URL")
-        self.client = OpenAI(api_key=api_key, base_url=base_url)
+    @classmethod
+    def from_history(cls, history: MessageHistory, connection:ConnectionParams):
+        item = cls(history.model_hp, connection)
+        item.history = history
 
-    def send(self, message, output_prefix="助手："):
+        return item
+
+    @classmethod
+    def from_hparams(cls, model:str, connection: ConnectionParams,
+                     temperature = None, top_p = None, random_seed = None, **kwargs):
+
+        hp = ModelHyperParams(model=model, temperature=temperature, top_p=top_p, random_seed=random_seed)
+        return cls(hp, connection, **kwargs)
+
+    def init_session(self, prompt: Optional[Prompt] = None, session_title="New Session", **kwargs):
+        self.history.init_session(session_title, language=prompt.language)
+
+        if prompt is not None:
+            self.history.system_prompt(prompt.system_message(), prompt_name=prompt.name)
+
+            if prompt.json_object:
+                self.response_format = {"type": "json_object"}
+
+            user_msg = prompt.user_message(**kwargs)
+            if user_msg is not None:
+                self.send(user_msg)
+
+    def send(self, message, output_prefix="Assistant："):
         self.history.user_message(message)
         response = self.client.chat.completions.create(
-            messages=self.history.get_messages(),
-            model=self.model,
-            stream=self.stream
+            messages=self.history.messages(),
+            model=self.model_hp.model,
+            temperature=self.model_hp.temperature,
+            top_p=self.model_hp.top_p,
+            seed=self.model_hp.random_seed,
+            stream=self.stream,
+            response_format=self.response_format
         )
 
         return self.__response_handler(response, output_prefix)
 
-    def __response_handler(self, response, output_prefix="助手："):
-        print(output_prefix, end="")
+    def __response_handler(self, response, output_prefix="Assistant："):
+        self._print(output_prefix, end="")
         if self.stream:
             full_reply = ""
             for chunk in response:
@@ -135,11 +178,30 @@ class Conversation:
                 if delta and delta.content:
                     print(delta.content, end="")
                     full_reply += delta.content
-            print("")
+            self._print("")
 
         else:
             full_reply = response.choices[0].message.content
-            print(full_reply)
+            self._print(full_reply)
 
         self.history.assistant_message(full_reply)
+        self.last_reply = full_reply
         return full_reply
+
+    def _print(self, obj, end: str | None = "\n",):
+        if not self.silence_mode:
+            print(obj, end=end)
+
+    def conversation_history(self):
+        return self.history.session_content()
+
+    def save_to(self, file_path: str):
+        with open(file_path, "w") as f:
+            f.write(json.dumps(self.conversation_history(), ensure_ascii=False) + "\n")
+
+    def save_to_jsonl(self, jsonl_path: str):
+        if jsonl_path.endswith(".jsonl"):
+            with open(jsonl_path, "a", encoding="utf-8") as f:
+                f.write(json.dumps(self.conversation_history(), ensure_ascii=False) + "\n")
+        else:
+            raise "Not Jsonl file"

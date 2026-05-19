@@ -2,7 +2,7 @@ import json
 
 
 class PromptManager(object):
-    def __init__(self,  file_path="./prompts/prompts.json"):
+    def __init__(self,  file_path="./chat/prompts/prompts.json"):
         self._prompt_library = json.load(open(file_path, "r"))["prompts"]
         self.prompt_keys = list(self._prompt_library.keys())
 
@@ -55,7 +55,7 @@ class Prompt(object):
 
     def user_message(self, **kwargs):
         if self._user_message is None:
-            raise KeyError("User Message not found")
+            return None
         else:
             message = self._user_message
             for var in self.variables:

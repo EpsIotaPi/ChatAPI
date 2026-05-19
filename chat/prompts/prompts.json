@@ -2,16 +2,14 @@
   "version": "1.0",
   "prompts": {
     "test": {
-      "description": "对聊天内容进行总结",
-      "variables": ["content"],
+      "description": "正常聊天",
+      "variables": [],
       "languages": {
         "en": {
-          "system": "You are a professional summarization assistant.",
-          "user": "Please summarize the following content:\n{{content}}"
+          "system": "You are a friendly AI assistant."
         },
         "zh": {
-          "system": "你是一个专业的总结助手。",
-          "user": "请总结以下内容：\n{{content}}"
+          "system": "你是一个友好的AI聊天助手。"
         }
       }
     },
