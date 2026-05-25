@@ -1,13 +1,10 @@
 import json
 from typing import Optional
 
-from openai import OpenAI
-
 from chat.Prompt import Prompt
-from chat.HyperParams import ModelHyperParams
-from chat.Connection import ConnectionParams
 from chat.MessageHistory import MessageHistory
-
+from chat.ConnectionHandler import ConnectionHandler
+from chat.Connection import ConnectionParams
 
 class Conversation:
     history: MessageHistory
@@ -15,34 +12,24 @@ class Conversation:
     silence_mode: bool
     last_reply: str = ""
 
-    def __init__(self, hp: ModelHyperParams, connection: ConnectionParams,
-                 stream=False, silence=False,
+    def __init__(self, connection_handler: ConnectionHandler,
                  json_object: bool = False):
 
-        self.history = MessageHistory(hp)
+        self.connection_handler = connection_handler
+        self.history = MessageHistory(connection_handler.model_params)
         self.model_hp = self.history.model_hp
 
-        self.stream = stream
-        self.silence_mode = silence
         self.response_format = {"type": "text"}
         if json_object:
             self.response_format = {"type": "json"}
 
-        self.client = OpenAI(api_key=connection.api_key, base_url=connection.base_url)
-
     @classmethod
     def from_history(cls, history: MessageHistory, connection:ConnectionParams):
-        item = cls(history.model_hp, connection)
+        connection = ConnectionHandler(history.model_hp, connection)
+        item = cls(connection)
         item.history = history
 
         return item
-
-    @classmethod
-    def from_hparams(cls, model:str, connection: ConnectionParams,
-                     temperature = None, top_p = None, random_seed = None, **kwargs):
-
-        hp = ModelHyperParams(model=model, temperature=temperature, top_p=top_p, random_seed=random_seed)
-        return cls(hp, connection, **kwargs)
 
     def init_session(self, prompt: Optional[Prompt] = None, session_title="New Session", **kwargs):
         self.history.init_session(session_title, language=prompt.language)
@@ -59,40 +46,12 @@ class Conversation:
 
     def send(self, message, output_prefix="Assistant："):
         self.history.user_message(message)
-        response = self.client.chat.completions.create(
-            messages=self.history.messages(),
-            model=self.model_hp.model,
-            temperature=self.model_hp.temperature,
-            top_p=self.model_hp.top_p,
-            seed=self.model_hp.random_seed,
-            stream=self.stream,
-            response_format=self.response_format
-        )
-
-        return self.__response_handler(response, output_prefix)
-
-    def __response_handler(self, response, output_prefix="Assistant："):
-        self._print(output_prefix, end="")
-        if self.stream:
-            full_reply = ""
-            for chunk in response:
-                delta = chunk.choices[0].delta
-                if delta and delta.content:
-                    print(delta.content, end="")
-                    full_reply += delta.content
-            self._print("")
-
-        else:
-            full_reply = response.choices[0].message.content
-            self._print(full_reply)
+        full_reply = self.connection_handler.send(self.history.messages(), output_prefix)
 
         self.history.assistant_message(full_reply)
         self.last_reply = full_reply
-        return full_reply
 
-    def _print(self, obj, end: str | None = "\n",):
-        if not self.silence_mode:
-            print(obj, end=end)
+        return full_reply
 
     def conversation_history(self):
         return self.history.session_content()

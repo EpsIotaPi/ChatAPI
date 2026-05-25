@@ -9,7 +9,7 @@ class ConnectionParams:
 
 
 
-class OpenAIConnection(ConnectionParams):
+class OpenAIConnectionParams(ConnectionParams):
     base_url: str = "https://api.openai.com/v1"
     api_key: str
 
@@ -19,7 +19,7 @@ class OpenAIConnection(ConnectionParams):
         self.gpt = "gpt-5.5"
         self.gpt_mini = "gpt-5.4-mini"
 
-class GoogleConnection(ConnectionParams):
+class GoogleConnectionParams(ConnectionParams):
     base_url: str = "https://generativelanguage.googleapis.com/v1beta/openai/"
     api_key: str
 
@@ -31,7 +31,7 @@ class GoogleConnection(ConnectionParams):
         self.gemini_flash = "gemini-3-flash-preview"
         self.gemini_flash_lite = "gemini-3.1-flash-lite"
 
-class DeepSeekConnection(ConnectionParams):
+class DeepSeekConnectionParams(ConnectionParams):
     base_url: str = "https://api.deepseek.com"
     api_key: str
 
