@@ -13,6 +13,18 @@
         }
       }
     },
+    "translation": {
+      "description": "翻译",
+      "variables": [],
+      "languages": {
+        "en": {
+          "system": "Please format the following text and translate it into English."
+        },
+        "zh": {
+          "system": "请把以下内容润色并翻译成英文。"
+        }
+      }
+    },
     "AQ_Joint": {
       "description": "Argument Quality Assessment: Joint",
       "variables": ["text"],
