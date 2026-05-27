@@ -8,7 +8,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from chat.Conversation import Conversation
 from chat.Prompt import PromptManager
 from chat.HyperParams import ModelHyperParams
-from chat.Connection import DeepSeekConnection, GoogleConnection, OpenAIConnection
+from chat.ConnectionHandler import OpenAIConnectionHandler, GoogleConnectionHandler
+from chat.ConnectionParams import DeepSeekConnectionParams, GoogleConnectionParams, OpenAIConnectionParams
 
 save_lock = threading.Lock()
 
@@ -17,10 +18,13 @@ row_list = pd.DataFrame([])
 n = len(row_list)
 max_workers = min(16, max(1, n))
 
-save_file_name = "test"
-connection = DeepSeekConnection()
-hp = ModelHyperParams(model=connection.deepseek_flash, temperature=0, random_seed=114514)
+connection_params = DeepSeekConnectionParams()
+connection_params.deepseek_pro()
+hp = ModelHyperParams(model=connection_params.model_alias, temperature=0, random_seed=114514)
 prompt = PromptManager().get_prompt("AQ_Joint", lang="en")
+connection_handler = OpenAIConnectionHandler(hp, connection_params, silence=True, stream=False)
+
+save_file_name = "test"
 save_file_name += hp.model
 
 
@@ -29,8 +33,8 @@ def single_conversation(idx_item):
     content = item[1]
     argument = content["argument"]
 
-    conversation = Conversation(hp, connection, silence=True)
-    conversation.init_session(prompt=prompt, text=argument)
+    conversation = Conversation(connection_handler)
+    conversation.init_session(prompt=prompt)
 
     annotation = json.loads(conversation.last_reply)
     with save_lock:

@@ -1,6 +1,10 @@
 from openai import OpenAI
+from google import genai
+from google.genai import types
+
+from chat.MessageHistory import MessageHistory
 from chat.HyperParams import ModelHyperParams
-from chat.Connection import ConnectionParams
+from chat.ConnectionParams import ConnectionParams
 
 
 class ConnectionHandler:
@@ -20,15 +24,16 @@ class ConnectionHandler:
         hp = ModelHyperParams(model=model, temperature=temperature, top_p=top_p, random_seed=random_seed)
         return cls(hp, connection, **kwargs)
 
-    def send(self, message, output_prefix="Assistant："):
+    def send(self, message_history:MessageHistory, output_prefix="Assistant："):
         """
         把 message 与 hp 整理成 send_content，并向LLM请求 response，用 response_handler 处理成 full_reply
+        :param message_history:
         :param message:
         :param output_prefix:
         :return:
         """
         send_content = {
-            "messages": message,
+            "messages": message_history.messages,
             "model": self.model_params.model,
             "temperature": self.model_params.model,
             "top_p": self.model_params.top_p,
@@ -58,9 +63,9 @@ class ConnectionHandler:
 
         return full_reply
 
-    def _print(self, obj, end: str | None = "\n", ):
+    def _print(self, obj, **kwargs):
         if not self.silence:
-            print(obj, end=end)
+            print(obj, **kwargs)
 
 
 class OpenAIConnectionHandler(ConnectionHandler):
@@ -71,9 +76,9 @@ class OpenAIConnectionHandler(ConnectionHandler):
         self.client = OpenAI(api_key=connection_params.api_key,
                              base_url=connection_params.base_url)
 
-    def send(self, message, output_prefix="Assistant："):
+    def send(self, message_history: MessageHistory, output_prefix="Assistant："):
         response = self.client.chat.completions.create(
-            messages=message,
+            messages=message_history.messages,
             model=self.model_params.model,
             temperature=self.model_params.temperature,
             top_p=self.model_params.top_p,
@@ -97,6 +102,51 @@ class OpenAIConnectionHandler(ConnectionHandler):
             self._print("")
         else:
             full_reply = response.choices[0].message.content
+            self._print(full_reply)
+
+        return full_reply
+
+
+class GoogleConnectionHandler(ConnectionHandler):
+    def __init__(self, model_params:ModelHyperParams, connection_params:ConnectionParams,
+                 silence=False, stream=False):
+        super().__init__(model_params, connection_params, silence, stream)
+
+        self.client = genai.Client(api_key=connection_params.api_key)
+        self.config = types.GenerateContentConfig(temperature=self.model_params.temperature,
+                                                  top_p=self.model_params.top_p,
+                                                  seed=self.model_params.random_seed)
+
+        self.chat = self.client.chats.create(model=self.model_params.model, config=self.config)
+
+    def send(self, message_history:MessageHistory, output_prefix="Assistant："):
+        sys_prompt = message_history.sys_prompt
+        if sys_prompt is not None and len(message_history) == 2: # 第一次提示的时候更新。此时有一条系统提示，和一条普通提示
+            self.update_sys_instruction(sys_prompt)
+
+        message = message_history.last_message
+        if self.stream:
+            response = self.chat.send_message_stream(message)
+        else:
+            response = self.chat.send_message(message)
+
+        full_reply = self._response_handler(response, output_prefix)
+
+        return full_reply
+
+    def update_sys_instruction(self, sys_instruction:str):
+        self.config.system_instruction = sys_instruction
+        self.chat = self.client.chats.create(model=self.model_params.model, config=self.config)
+
+    def _response_handler(self, response, output_prefix="Assistant："):
+        self._print(output_prefix, end="")
+        if self.stream:
+            full_reply = ""
+            for chunk in response:
+                self._print(chunk.text, end="", flush=True)
+                full_reply += chunk.text
+        else:
+            full_reply = response.text
             self._print(full_reply)
 
         return full_reply

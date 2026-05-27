@@ -1,5 +1,5 @@
 import json, uuid, random
-from typing import Union
+from typing import Union, Optional
 from pathlib import Path
 from datetime import datetime, UTC
 
@@ -48,16 +48,6 @@ class MessageHistory:
             "messages": []
         }
 
-    def system_prompt(self, sys_prompt: str, prompt_name=None):
-        if prompt_name is not None:
-            self._session_content["metadata"]["prompt_name"] = prompt_name
-        self._session_content["messages"].append({
-            "id": "sys_000",
-            "role": "system",
-            "content": sys_prompt,
-            "created_at": utc_timestamp()
-        })
-
     @classmethod
     def load(cls, data: Union[str, Path, dict]):
         if not isinstance(data, dict):
@@ -91,14 +81,39 @@ class MessageHistory:
         }
         self._session_content["messages"].append(data)
 
+    def set_system_prompt(self, sys_prompt: str, prompt_name=None):
+        if prompt_name is not None:
+            self._session_content["metadata"]["prompt_name"] = prompt_name
+        self._session_content["messages"].append({
+            "id": "sys_000",
+            "role": "system",
+            "content": sys_prompt,
+            "created_at": utc_timestamp()
+        })
+
     def user_message(self, message: str):
         self._save_message(role="user", message=message)
 
     def assistant_message(self, message: str):
         self._save_message(role="assistant", message=message)
 
+    @property
     def session_content(self):
         return self._session_content
 
-    def messages(self):
+    @property
+    def messages(self) -> list:
         return self._session_content["messages"]
+
+    @property
+    def sys_prompt(self) -> Optional[str]:
+        if self.messages[0]["role"] != "system":
+            return None
+        return self.messages[0]["content"]
+
+    @property
+    def last_message(self) -> str:
+        return self.messages[-1]["content"]
+
+    def __len__(self):
+        return len(self.messages)

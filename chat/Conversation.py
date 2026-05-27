@@ -4,7 +4,7 @@ from typing import Optional
 from chat.Prompt import Prompt
 from chat.MessageHistory import MessageHistory
 from chat.ConnectionHandler import ConnectionHandler
-from chat.Connection import ConnectionParams
+from chat.ConnectionParams import ConnectionParams
 
 class Conversation:
     history: MessageHistory
@@ -35,7 +35,7 @@ class Conversation:
         self.history.init_session(session_title, language=prompt.language)
 
         if prompt is not None:
-            self.history.system_prompt(prompt.system_message(), prompt_name=prompt.name)
+            self.history.set_system_prompt(prompt.system_message(), prompt_name=prompt.name)
 
             if prompt.json_object:
                 self.response_format = {"type": "json_object"}
@@ -46,7 +46,7 @@ class Conversation:
 
     def send(self, message, output_prefix="Assistant："):
         self.history.user_message(message)
-        full_reply = self.connection_handler.send(self.history.messages(), output_prefix)
+        full_reply = self.connection_handler.send(self.history, output_prefix)
 
         self.history.assistant_message(full_reply)
         self.last_reply = full_reply
