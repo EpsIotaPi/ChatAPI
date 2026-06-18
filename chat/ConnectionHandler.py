@@ -75,10 +75,17 @@ class OpenAIConnectionHandler(ConnectionHandler):
 
         self.client = OpenAI(api_key=connection_params.api_key,
                              base_url=connection_params.base_url)
+        self.last_reasoning_content = None
 
     def send(self, message_history: MessageHistory, output_prefix="Assistant："):
+        msg_history = message_history.messages
+        messages = [
+            {k: m[k] for k in  ("role", "content", "reasoning_content") if k in m and m[k] is not None}
+            for m in msg_history
+        ]
+
         response = self.client.chat.completions.create(
-            messages=message_history.messages,
+            messages=messages,
             model=self.model_params.model,
             temperature=self.model_params.temperature,
             top_p=self.model_params.top_p,
@@ -86,25 +93,40 @@ class OpenAIConnectionHandler(ConnectionHandler):
             stream=self.stream,
             response_format=self.response_format
         )
-        full_reply = self._response_handler(response, output_prefix)
+        full_reply, self.last_reasoning_content = self._response_handler(response, output_prefix)
 
         return full_reply
 
     def _response_handler(self, response, output_prefix="Assistant："):
-        self._print(output_prefix, end="")
         if self.stream:
             full_reply = ""
+            reasoning_content = None
             for chunk in response:
-                delta = chunk.choices[0].delta
-                if delta and delta.content:
-                    print(delta.content, end="")
-                    full_reply += delta.content
+                if len(chunk.choices) != 0:
+                    delta = chunk.choices[0].delta
+                    if not delta:
+                        continue
+                    reasoning_delta = getattr(delta, "reasoning_content", None)
+                    if reasoning_delta:
+                        if reasoning_content is None:
+                            reasoning_content = ""
+                            self._print("Reasoning: ", end="")
+                        self._print(reasoning_delta, end="")
+                        reasoning_content += reasoning_delta
+                    elif delta.content:
+                        if full_reply == "":
+                            print("")
+                            self._print(output_prefix, end="")
+                        print(delta.content, end="")
+                        full_reply += delta.content
             self._print("")
         else:
-            full_reply = response.choices[0].message.content
+            message = response.choices[0].message
+            full_reply = message.content or ""
+            reasoning_content = getattr(message, "reasoning_content", None) or None
             self._print(full_reply)
 
-        return full_reply
+        return full_reply, reasoning_content
 
 
 class GoogleConnectionHandler(ConnectionHandler):

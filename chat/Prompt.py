@@ -6,7 +6,7 @@ class PromptManager(object):
         self._prompt_library = json.load(open(file_path, "r"))["prompts"]
         self.prompt_keys = list(self._prompt_library.keys())
 
-    def get_prompt(self, name:str, lang="en"):
+    def get_prompt(self, name:str="chat", lang="en"):
         if name not in self.prompt_keys:
             raise KeyError("Prompt not found")
         return Prompt(name, self._prompt_library[name], lang)

@@ -1,7 +1,7 @@
 {
   "version": "1.0",
   "prompts": {
-    "test": {
+    "chat": {
       "description": "正常聊天",
       "variables": [],
       "languages": {

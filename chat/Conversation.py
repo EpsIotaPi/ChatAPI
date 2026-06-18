@@ -11,6 +11,7 @@ class Conversation:
     stream: bool
     silence_mode: bool
     last_reply: str = ""
+    last_reasoning_content: str | None = None
 
     def __init__(self, connection_handler: ConnectionHandler,
                  json_object: bool = False):
@@ -46,15 +47,17 @@ class Conversation:
 
     def send(self, message, output_prefix="Assistant："):
         self.history.user_message(message)
-        full_reply = self.connection_handler.send(self.history, output_prefix)
 
-        self.history.assistant_message(full_reply)
-        self.last_reply = full_reply
+        self.last_reply = self.connection_handler.send(self.history, output_prefix)
+        self.last_reasoning_content = getattr(self.connection_handler, "last_reasoning_content", None)
 
-        return full_reply
+        self.history.assistant_message(self.last_reply, reasoning_content=self.last_reasoning_content)
+
+        return self.last_reply
 
     def conversation_history(self):
-        return self.history.session_content()
+        print(self.history.session_content)
+        return self.history.session_content
 
     def save_to(self, file_path: str):
         with open(file_path, "w") as f:
