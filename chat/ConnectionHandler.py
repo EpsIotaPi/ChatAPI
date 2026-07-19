@@ -130,14 +130,25 @@ class OpenAIConnectionHandler(ConnectionHandler):
 
 
 class GoogleConnectionHandler(ConnectionHandler):
+    # gemma 系列不支持 thinking，只对 gemini 系列模型自动开启 include_thoughts，
+    # 避免给不支持的模型传 thinking_config 导致请求报错。
+    _THINKING_CAPABLE_PREFIX = "gemini"
+
     def __init__(self, model_params:ModelHyperParams, connection_params:ConnectionParams,
-                 silence=False, stream=False):
+                 silence=False, stream=False, include_thoughts: bool = True):
         super().__init__(model_params, connection_params, silence, stream)
 
         self.client = genai.Client(api_key=connection_params.api_key)
+        self.last_reasoning_content = None
+
+        thinking_config = None
+        if include_thoughts and self.model_params.model.startswith(self._THINKING_CAPABLE_PREFIX):
+            thinking_config = types.ThinkingConfig(include_thoughts=True)
+
         self.config = types.GenerateContentConfig(temperature=self.model_params.temperature,
                                                   top_p=self.model_params.top_p,
-                                                  seed=self.model_params.random_seed)
+                                                  seed=self.model_params.random_seed,
+                                                  thinking_config=thinking_config)
 
         self.chat = self.client.chats.create(model=self.model_params.model, config=self.config)
 
@@ -152,7 +163,7 @@ class GoogleConnectionHandler(ConnectionHandler):
         else:
             response = self.chat.send_message(message)
 
-        full_reply = self._response_handler(response, output_prefix)
+        full_reply, self.last_reasoning_content = self._response_handler(response, output_prefix)
 
         return full_reply
 
@@ -160,18 +171,52 @@ class GoogleConnectionHandler(ConnectionHandler):
         self.config.system_instruction = sys_instruction
         self.chat = self.client.chats.create(model=self.model_params.model, config=self.config)
 
+    @staticmethod
+    def _split_parts(parts):
+        """
+        Gemini 把思考内容和正文分别放在 content.parts 里，用 part.thought 标记区分，
+        而不是像 DeepSeek/本地模型那样用独立字段或内联标签。这里按标记拆成 (正文, 推理) 两段文本。
+        """
+        reply_text = ""
+        thought_text = ""
+        for part in (parts or []):
+            text = getattr(part, "text", None)
+            if not text:
+                continue
+            if getattr(part, "thought", False):
+                thought_text += text
+            else:
+                reply_text += text
+        return reply_text, (thought_text or None)
+
     def _response_handler(self, response, output_prefix="Assistant："):
         self._print(output_prefix, end="")
         if self.stream:
             full_reply = ""
+            reasoning_content = None
+            printed_reasoning_prefix = False
             for chunk in response:
-                self._print(chunk.text, end="", flush=True)
-                full_reply += chunk.text
+                candidates = getattr(chunk, "candidates", None) or []
+                if not candidates:
+                    continue
+                reply_part, thought_part = self._split_parts(getattr(candidates[0].content, "parts", None))
+                if thought_part:
+                    if not printed_reasoning_prefix:
+                        self._print("\nReasoning: ", end="")
+                        printed_reasoning_prefix = True
+                    self._print(thought_part, end="", flush=True)
+                    reasoning_content = (reasoning_content or "") + thought_part
+                if reply_part:
+                    self._print(reply_part, end="", flush=True)
+                    full_reply += reply_part
+            self._print("")
         else:
-            full_reply = response.text
+            candidates = getattr(response, "candidates", None) or []
+            parts = getattr(candidates[0].content, "parts", None) if candidates else None
+            full_reply, reasoning_content = self._split_parts(parts)
             self._print(full_reply)
 
-        return full_reply
+        return full_reply, reasoning_content
 
 
 
