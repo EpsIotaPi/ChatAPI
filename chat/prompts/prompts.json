@@ -31,7 +31,7 @@
       "json_object": true,
       "languages": {
         "en": {
-          "path_system": "./chat/prompt/quality_prompt_LDR.en.txt",
+          "path_system": "quality_prompt_LDR.en.txt",
           "user": "Evaluate the argument quality of the following text: \n{{text}}"
         }
       }

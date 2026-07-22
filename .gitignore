@@ -3,3 +3,6 @@ Playground*.py
 chat/history/
 __pycache__/
 Archive/
+dist/
+build/
+*.egg-info/

@@ -47,4 +47,4 @@
 
 ## 工程基础设施
 
-- [ ] 依赖管理（`requirements.txt` 或 `pyproject.toml`）：目前 `openai`/`google-genai`/`pandas`/`tqdm`/`pyparsing` 全靠手动安装，锁定版本可避免环境漂移（尤其 `google-genai` 这类还在快速迭代、字段容易变的库）
+- [x] 依赖管理与打包（`pyproject.toml`）：`chat` 作为可安装包（`chatapi`），锁定 `openai`/`google-genai`/`pandas`/`tqdm`/`pyparsing` 的大版本区间；`chat/prompts/*.json`、`*.txt` 通过 `package-data` 随包分发；版本号单一来源于 `pyproject.toml`，`chat/__init__.py` 通过 `importlib.metadata` 读取暴露为 `__version__`。支持 `pip install git+ssh://...`（含 `@<tag>` 锁版本）从私有 Git 服务器安装到其它项目/远程服务器。副带修复：`PromptManager` 默认路径及 `prompts.json` 里的 `path_system`/`path_user` 原本是 CWD 相对路径（且有 `chat/prompt/` 目录名 typo），装成包后从别的项目调用会 `FileNotFoundError`；改为基于包内路径解析，已在临时 venv 中验证跨目录导入正常

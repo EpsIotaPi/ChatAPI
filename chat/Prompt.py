@@ -1,23 +1,28 @@
 import json
+import os
+
+_DEFAULT_PROMPTS_PATH = os.path.join(os.path.dirname(__file__), "prompts", "prompts.json")
 
 
 class PromptManager(object):
-    def __init__(self,  file_path="./chat/prompts/prompts.json"):
+    def __init__(self, file_path=_DEFAULT_PROMPTS_PATH):
+        self._base_dir = os.path.dirname(os.path.abspath(file_path))
         self._prompt_library = json.load(open(file_path, "r"))["prompts"]
         self.prompt_keys = list(self._prompt_library.keys())
 
     def get_prompt(self, name:str="chat", lang="en"):
         if name not in self.prompt_keys:
             raise KeyError("Prompt not found")
-        return Prompt(name, self._prompt_library[name], lang)
+        return Prompt(name, self._prompt_library[name], lang, base_dir=self._base_dir)
 
 
 class Prompt(object):
     json_object: bool
 
-    def __init__(self, name:str, content: dict, lang="en"):
+    def __init__(self, name:str, content: dict, lang="en", base_dir=None):
         self.name = name
         self.language = lang
+        self._base_dir = base_dir or os.path.dirname(_DEFAULT_PROMPTS_PATH)
         self.description = content["description"]
         self.variables = content["variables"]
         self.language_list = list(content["languages"].keys())
@@ -40,13 +45,15 @@ class Prompt(object):
         if "system" in self._prompt[self.language].keys():
             self._system_message = self._prompt[self.language]["system"]
         elif "path_system" in self._prompt[self.language].keys():
-            with open(self._prompt[self.language]["path_system"], "r") as f:
+            path = os.path.join(self._base_dir, self._prompt[self.language]["path_system"])
+            with open(path, "r") as f:
                 self._system_message = f.read()
 
         if "user" in self._prompt[self.language].keys():
             self._user_message = self._prompt[self.language]["user"]
         elif "path_user" in self._prompt[self.language].keys():
-            with open(self._prompt[self.language]["path_user"], "r") as f:
+            path = os.path.join(self._base_dir, self._prompt[self.language]["path_user"])
+            with open(path, "r") as f:
                 self._user_message = f.read()
 
 
