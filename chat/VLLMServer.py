@@ -1,5 +1,7 @@
 import atexit
+import collections
 import subprocess
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -25,16 +27,19 @@ class VLLMServer:
 
     def __init__(self, model: str, host: str = "127.0.0.1", port: int = 8000,
                  extra_args: list = None, startup_timeout: float = 300.0,
-                 poll_interval: float = 2.0):
+                 poll_interval: float = 2.0, verbose: bool = True):
         self.model = model
         self.host = host
         self.port = port
         self.extra_args = extra_args or []
         self.startup_timeout = startup_timeout
         self.poll_interval = poll_interval
+        self.verbose = verbose
 
         self._process = None
         self._atexit_registered = False
+        self._output_buffer = collections.deque(maxlen=200)
+        self._reader_thread = None
 
     @property
     def base_url(self) -> str:
@@ -48,6 +53,10 @@ class VLLMServer:
         if self._process is not None and self._process.poll() is None:
             return self  # 已经在运行，幂等
 
+        if self.verbose:
+            self._print_separator()
+            print(f"正在加载模型：{self.model} ...")
+
         cmd = ["vllm", "serve", self.model, "--host", self.host, "--port", str(self.port)]
         cmd.extend(self.extra_args)
 
@@ -58,6 +67,9 @@ class VLLMServer:
             text=True,
         )
 
+        self._reader_thread = threading.Thread(target=self._drain_output, daemon=True)
+        self._reader_thread.start()
+
         if not self._atexit_registered:
             atexit.register(self.stop)
             self._atexit_registered = True
@@ -65,46 +77,80 @@ class VLLMServer:
         self._wait_until_ready()
         return self
 
+    def _drain_output(self):
+        # 只收集到缓冲区供失败时兜底展示，不实时打印，避免刷屏。
+        for line in self._process.stdout:
+            self._output_buffer.append(line.rstrip("\n"))
+
     def _wait_until_ready(self):
-        deadline = time.monotonic() + self.startup_timeout
+        display_tick = 1.0
+        start = time.monotonic()
+        deadline = start + self.startup_timeout
+        next_check = start
+
         while time.monotonic() < deadline:
             if self._process.poll() is not None:
+                if self.verbose:
+                    print()
                 raise VLLMServerError(
                     f"vllm serve 进程提前退出（returncode={self._process.returncode}）。\n"
                     f"{self._tail_output()}"
                 )
-            try:
-                with urllib.request.urlopen(self.health_url, timeout=self.poll_interval) as resp:
-                    if resp.status == 200:
-                        return
-            except (urllib.error.URLError, ConnectionError, TimeoutError):
-                pass
-            time.sleep(self.poll_interval)
 
+            now = time.monotonic()
+            if now >= next_check:
+                try:
+                    with urllib.request.urlopen(self.health_url, timeout=self.poll_interval) as resp:
+                        if resp.status == 200:
+                            if self.verbose:
+                                print(f"\r模型加载成功（耗时 {time.monotonic() - start:.1f} 秒）")
+                                self._print_separator()
+                            return
+                except (urllib.error.URLError, ConnectionError, TimeoutError):
+                    pass
+                next_check = now + self.poll_interval
+
+            if self.verbose:
+                elapsed = time.monotonic() - start
+                print(f"\r已等待 {elapsed:.0f}/{self.startup_timeout:.0f} 秒", end="", flush=True)
+            time.sleep(display_tick)
+
+        if self.verbose:
+            print()
         self.stop()
         raise VLLMServerError(
             f"等待 vLLM 就绪超时（{self.startup_timeout}s），已终止子进程。\n{self._tail_output()}"
         )
 
     def _tail_output(self, n_lines: int = 20) -> str:
-        if self._process is None or self._process.stdout is None:
-            return ""
-        try:
-            output = self._process.stdout.read()
-        except Exception:
-            return ""
-        lines = output.splitlines()[-n_lines:]
+        lines = list(self._output_buffer)[-n_lines:]
         return "vllm serve 输出尾部：\n" + "\n".join(lines)
+
+    @staticmethod
+    def _print_separator():
+        print("=" * 60)
 
     def stop(self):
         if self._process is None or self._process.poll() is not None:
             return
+
+        if self.verbose:
+            self._print_separator()
+            print("正在关闭...")
+
         self._process.terminate()
         try:
             self._process.wait(timeout=10)
         except subprocess.TimeoutExpired:
             self._process.kill()
             self._process.wait(timeout=10)
+
+        if self._reader_thread is not None:
+            self._reader_thread.join(timeout=5)
+
+        if self.verbose:
+            print("模型已关闭")
+            self._print_separator()
 
     def connection_params(self, key_env: str = "VLLM_KEY") -> VLLMConnectionParams:
         """返回指向本实例地址的 VLLMConnectionParams，并把 model_alias 设为启动时的模型名。"""

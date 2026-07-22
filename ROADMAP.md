@@ -24,9 +24,9 @@
 
 - [x] vLLM Python 全托管：新建 `chat/VLLMServer.py`，`subprocess` 启动 `vllm serve`，轮询 `/health` 等待就绪（超时抛出并附带子进程输出尾部），支持上下文管理器 + `atexit` 自动清理；`connection_params()` 直接返回配套的 `VLLMConnectionParams`
 - [x] 示例脚本 `Playground3_vllm.py`：`VLLMServer` → `Conversation` 端到端串联。已在远程服务器真实环境联调通过（`Qwen/Qwen2.5-3B-Instruct`，12GB 显卡）：默认 `--gpu-memory-utilization 0.9` 会在 CUDA Graph 捕获阶段 OOM（`torch.AcceleratorError: CUDA error: out of memory`，权重本身能装下，是捕获阶段的额外显存需求超出预留池），通过 `extra_args=["--gpu-memory-utilization", "0.85", "--max-model-len", "4096"]` 收窄显存预留后解决；非推理模型跑通了普通对话保存
+- [x] 运行过程反馈：`VLLMServer._wait_until_ready()` 目前轮询 `/health` 期间完全没有输出，模型加载/CUDA Graph 捕获可能耗时几分钟，用户不知道是在正常等待还是卡住了。需要在轮询循环里加进度提示（比如每次 `poll_interval` 打印一次"等待 vLLM 就绪...已等待 Xs"，或把子进程 stdout 实时转发到前台而不是只在失败时打印尾部）
 
 - [ ] ❗ vLLM + CoT 联调测试：目前只验证了普通模型（`Qwen2.5-3B-Instruct`，无 `reasoning_content`）的连通性，还没有用支持推理的模型（如 `Qwen/QwQ-32B` 等）配合 `--reasoning-parser` 实测过 `reasoning_content` 能否正确落盘。需要挑一个显存能放下的推理模型，加上对应的 `--reasoning-parser` 参数跑一遍 `Playground3_vllm.py`，确认走的 `OpenAIConnectionHandler` 路径解析正常
-- [ ] ❗❗ 运行过程反馈：`VLLMServer._wait_until_ready()` 目前轮询 `/health` 期间完全没有输出，模型加载/CUDA Graph 捕获可能耗时几分钟，用户不知道是在正常等待还是卡住了。需要在轮询循环里加进度提示（比如每次 `poll_interval` 打印一次"等待 vLLM 就绪...已等待 Xs"，或把子进程 stdout 实时转发到前台而不是只在失败时打印尾部）
 - [ ] ❗ vLLM 健康检查/复用已有实例：`VLLMServer.start()` 目前每次都会新起一个进程；加一个"先探测目标端口是否已有 vLLM 在跑，有则直接复用、没有才启动"的逻辑，省去连续跑多个脚本时反复加载模型的等待时间
 
 ## 会话与存储
