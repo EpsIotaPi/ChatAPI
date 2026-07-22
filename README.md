@@ -37,3 +37,5 @@ pip install git+https://git.epsiotapi.com/EpsIotaPi/ChatAPI.git@v0.1.0
 - `OPENAI_KEY`
 - `GOOGLE_KEY`
 - `DEEPSEEK_KEY`
+
+`PROMPTS_DIR`（可选）：`PromptManager` 默认从包内 `chat/prompts/prompts.json` 加载 prompt 模板；设置了 `PROMPTS_DIR` 后会改为从 `$PROMPTS_DIR/prompts.json` 加载，方便下游项目提供自己的一套 prompt 而不用改代码。

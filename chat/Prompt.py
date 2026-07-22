@@ -1,11 +1,15 @@
 import json
 import os
 
-_DEFAULT_PROMPTS_PATH = os.path.join(os.path.dirname(__file__), "prompts", "prompts.json")
+_DEFAULT_PROMPTS_DIR = os.path.join(os.path.dirname(__file__), "prompts")
+_DEFAULT_PROMPTS_PATH = os.path.join(_DEFAULT_PROMPTS_DIR, "prompts.json")
 
 
 class PromptManager(object):
-    def __init__(self, file_path=_DEFAULT_PROMPTS_PATH):
+    def __init__(self, file_path=None):
+        if file_path is None:
+            prompt_dir = os.getenv("PROMPTS_DIR") or _DEFAULT_PROMPTS_DIR
+            file_path = os.path.join(prompt_dir, "prompts.json")
         self._base_dir = os.path.dirname(os.path.abspath(file_path))
         self._prompt_library = json.load(open(file_path, "r"))["prompts"]
         self.prompt_keys = list(self._prompt_library.keys())

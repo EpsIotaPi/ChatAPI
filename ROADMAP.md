@@ -38,6 +38,7 @@
 ## Prompt 管理
 
 - [x] `Prompt` / `PromptManager` 模板机制（`chat/Prompt.py`、`chat/prompts/prompts.json`）：多语言、`{{var}}` 占位符替换
+- [x] `PROMPTS_DIR` 环境变量：`PromptManager` 默认加载包内 `chat/prompts/prompts.json`，若设置了 `PROMPTS_DIR` 则改为加载 `$PROMPTS_DIR/prompts.json`，让打包后下游项目可以整套替换成自己的 prompt 库而不用改代码
 
 ## 运行入口 / 批处理
 
@@ -47,4 +48,4 @@
 
 ## 工程基础设施
 
-- [x] 依赖管理与打包（`pyproject.toml`）：`chat` 作为可安装包（`chatapi`），锁定 `openai`/`google-genai`/`pandas`/`tqdm`/`pyparsing` 的大版本区间；`chat/prompts/*.json`、`*.txt` 通过 `package-data` 随包分发；版本号单一来源于 `pyproject.toml`，`chat/__init__.py` 通过 `importlib.metadata` 读取暴露为 `__version__`。支持 `pip install git+ssh://...`（含 `@<tag>` 锁版本）从私有 Git 服务器安装到其它项目/远程服务器。副带修复：`PromptManager` 默认路径及 `prompts.json` 里的 `path_system`/`path_user` 原本是 CWD 相对路径（且有 `chat/prompt/` 目录名 typo），装成包后从别的项目调用会 `FileNotFoundError`；改为基于包内路径解析，已在临时 venv 中验证跨目录导入正常
+- [x] 依赖管理与打包（`pyproject.toml`）：`chat` 作为可安装包（`chatapi`），锁定 `openai`/`google-genai`/`pandas`/`tqdm`/`pyparsing` 的大版本区间；`chat/prompts/*.json`、`*.txt` 通过 `package-data` 随包分发；版本号单一来源于 `pyproject.toml`，`chat/__init__.py` 通过 `importlib.metadata` 读取暴露为 `__version__`。支持 `pip install git+https://git.epsiotapi.com/EpsIotaPi/ChatAPI.git`（含 `@<tag>` 锁版本）从私有 Git 服务器安装到其它项目/远程服务器。副带修复：`PromptManager` 默认路径及 `prompts.json` 里的 `path_system`/`path_user` 原本是 CWD 相对路径（且有 `chat/prompt/` 目录名 typo），装成包后从别的项目调用会 `FileNotFoundError`；改为基于包内路径解析，已在临时 venv 中验证跨目录导入正常
