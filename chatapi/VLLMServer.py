@@ -6,7 +6,7 @@ import time
 import urllib.error
 import urllib.request
 
-from chat.ConnectionParams import VLLMConnectionParams
+from chatapi.ConnectionParams import VLLMConnectionParams
 
 
 class VLLMServerError(Exception):

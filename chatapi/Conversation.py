@@ -1,10 +1,10 @@
 import json
 from typing import Optional
 
-from chat.Prompt import Prompt
-from chat.MessageHistory import MessageHistory
-from chat.ConnectionHandler import ConnectionHandler
-from chat.ConnectionParams import ConnectionParams
+from chatapi.Prompt import Prompt
+from chatapi.MessageHistory import MessageHistory
+from chatapi.ConnectionHandler import ConnectionHandler
+from chatapi.ConnectionParams import ConnectionParams
 
 class Conversation:
     history: MessageHistory

@@ -2,9 +2,9 @@ from openai import OpenAI
 from google import genai
 from google.genai import types
 
-from chat.MessageHistory import MessageHistory
-from chat.HyperParams import ModelHyperParams
-from chat.ConnectionParams import ConnectionParams
+from chatapi.MessageHistory import MessageHistory
+from chatapi.HyperParams import ModelHyperParams
+from chatapi.ConnectionParams import ConnectionParams
 
 
 class ConnectionHandler:

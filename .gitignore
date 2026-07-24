@@ -1,6 +1,6 @@
 Playground*.py
 .idea/
-chat/history/
+chatapi/history/
 __pycache__/
 Archive/
 dist/

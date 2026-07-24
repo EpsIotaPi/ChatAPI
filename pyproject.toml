@@ -16,7 +16,7 @@ dependencies = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["chat", "chat.*"]
+include = ["chatapi", "chatapi.*"]
 
 [tool.setuptools.package-data]
-"chat" = ["prompts/*.json", "prompts/*.txt"]
+"chatapi" = ["prompts/*.json", "prompts/*.txt"]

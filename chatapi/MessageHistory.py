@@ -3,7 +3,7 @@ from typing import Union, Optional
 from pathlib import Path
 from datetime import datetime, UTC
 
-from chat.HyperParams import ModelHyperParams
+from chatapi.HyperParams import ModelHyperParams
 
 
 

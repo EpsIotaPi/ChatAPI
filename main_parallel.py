@@ -5,11 +5,11 @@ from tqdm.auto import tqdm
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from chat.Conversation import Conversation
-from chat.Prompt import PromptManager
-from chat.HyperParams import ModelHyperParams
-from chat.ConnectionHandler import OpenAIConnectionHandler, GoogleConnectionHandler
-from chat.ConnectionParams import DeepSeekConnectionParams, GoogleConnectionParams, OpenAIConnectionParams
+from chatapi.Conversation import Conversation
+from chatapi.Prompt import PromptManager
+from chatapi.HyperParams import ModelHyperParams
+from chatapi.ConnectionHandler import OpenAIConnectionHandler, GoogleConnectionHandler
+from chatapi.ConnectionParams import DeepSeekConnectionParams, GoogleConnectionParams, OpenAIConnectionParams
 
 save_lock = threading.Lock()
 
