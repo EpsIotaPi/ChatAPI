@@ -9,12 +9,11 @@ from chatapi.ConnectionParams import ConnectionParams
 
 class ConnectionHandler:
     def __init__(self, model_params:ModelHyperParams, connection_params:ConnectionParams,
-                 silence=False, stream=False):
+                 silence=False):
         self.model_params = model_params
         self.connection_params = connection_params
 
         self.silence = silence
-        self.stream = stream
         self.response_format = {"type": "text"}
 
     @classmethod
@@ -24,7 +23,10 @@ class ConnectionHandler:
         hp = ModelHyperParams(model=model, temperature=temperature, top_p=top_p, random_seed=random_seed)
         return cls(hp, connection, **kwargs)
 
-    def send(self, message_history:MessageHistory, output_prefix="Assistant："):
+    def set_silence_mode(self):
+        self.silence = True
+
+    def send(self, message_history:MessageHistory, output_prefix="Assistant：", stream=False):
         """
         把 message 与 hp 整理成 send_content，并向LLM请求 response，用 response_handler 处理成 full_reply
         :param message_history:
@@ -38,19 +40,19 @@ class ConnectionHandler:
             "temperature": self.model_params.model,
             "top_p": self.model_params.top_p,
             "seed": self.model_params.random_seed,
-            "stream": self.stream,
+            "stream": stream,
             "response_format": self.response_format
         }
 
         response = "this is the response from LLM"
 
-        full_reply = self._response_handler(response)
+        if stream and self.silence:
+            print("You set up silence mode, but stream response still will be printed.")
+
+        full_reply = self._response_handler(response, output_prefix, stream)
         return full_reply
 
-    def set_silence_mode(self):
-        self.silence = True
-
-    def _response_handler(self, response, output_prefix="Assistant："):
+    def _response_handler(self, response, output_prefix, stream):
         """
         对收到的 LLM response 进行处理、打印。流式信息和普通信息需要分开处理。
         :param response:
@@ -70,14 +72,14 @@ class ConnectionHandler:
 
 class OpenAIConnectionHandler(ConnectionHandler):
     def __init__(self, model_params:ModelHyperParams, connection_params:ConnectionParams,
-                 silence=False, stream=False):
-        super().__init__(model_params, connection_params, silence, stream)
+                 silence=False):
+        super().__init__(model_params, connection_params, silence)
 
         self.client = OpenAI(api_key=connection_params.api_key,
                              base_url=connection_params.base_url)
         self.last_reasoning_content = None
 
-    def send(self, message_history: MessageHistory, output_prefix="Assistant："):
+    def send(self, message_history: MessageHistory, output_prefix="Assistant：", stream=False):
         msg_history = message_history.messages
         messages = [
             {k: m[k] for k in  ("role", "content", "reasoning_content") if k in m and m[k] is not None}
@@ -90,15 +92,19 @@ class OpenAIConnectionHandler(ConnectionHandler):
             temperature=self.model_params.temperature,
             top_p=self.model_params.top_p,
             seed=self.model_params.random_seed,
-            stream=self.stream,
+            stream=stream,
             response_format=self.response_format
         )
-        full_reply, self.last_reasoning_content = self._response_handler(response, output_prefix)
+
+        if stream and self.silence:
+            print("You set up silence mode, but stream response still will be printed.")
+
+        full_reply, self.last_reasoning_content = self._response_handler(response, output_prefix, stream)
 
         return full_reply
 
-    def _response_handler(self, response, output_prefix="Assistant："):
-        if self.stream:
+    def _response_handler(self, response, output_prefix, stream):
+        if stream:
             full_reply = ""
             reasoning_content = None
             for chunk in response:
@@ -135,8 +141,8 @@ class GoogleConnectionHandler(ConnectionHandler):
     _THINKING_CAPABLE_PREFIX = "gemini"
 
     def __init__(self, model_params:ModelHyperParams, connection_params:ConnectionParams,
-                 silence=False, stream=False, include_thoughts: bool = True):
-        super().__init__(model_params, connection_params, silence, stream)
+                 silence=False, include_thoughts: bool = True):
+        super().__init__(model_params, connection_params, silence)
 
         self.client = genai.Client(api_key=connection_params.api_key)
         self.last_reasoning_content = None
@@ -152,46 +158,28 @@ class GoogleConnectionHandler(ConnectionHandler):
 
         self.chat = self.client.chats.create(model=self.model_params.model, config=self.config)
 
-    def send(self, message_history:MessageHistory, output_prefix="Assistant："):
+    def send(self, message_history:MessageHistory, output_prefix="Assistant：", stream=False):
         sys_prompt = message_history.sys_prompt
         if sys_prompt is not None and len(message_history) == 2: # 第一次提示的时候更新。此时有一条系统提示，和一条普通提示
             self.update_sys_instruction(sys_prompt)
 
         message = message_history.last_message
-        if self.stream:
+
+        if stream and self.silence:
+            print("You set up silence mode, but stream response still will be printed.")
+
+        if stream:
             response = self.chat.send_message_stream(message)
         else:
             response = self.chat.send_message(message)
 
-        full_reply, self.last_reasoning_content = self._response_handler(response, output_prefix)
+        full_reply, self.last_reasoning_content = self._response_handler(response, output_prefix, stream)
 
         return full_reply
 
-    def update_sys_instruction(self, sys_instruction:str):
-        self.config.system_instruction = sys_instruction
-        self.chat = self.client.chats.create(model=self.model_params.model, config=self.config)
-
-    @staticmethod
-    def _split_parts(parts):
-        """
-        Gemini 把思考内容和正文分别放在 content.parts 里，用 part.thought 标记区分，
-        而不是像 DeepSeek/本地模型那样用独立字段或内联标签。这里按标记拆成 (正文, 推理) 两段文本。
-        """
-        reply_text = ""
-        thought_text = ""
-        for part in (parts or []):
-            text = getattr(part, "text", None)
-            if not text:
-                continue
-            if getattr(part, "thought", False):
-                thought_text += text
-            else:
-                reply_text += text
-        return reply_text, (thought_text or None)
-
-    def _response_handler(self, response, output_prefix="Assistant："):
+    def _response_handler(self, response, output_prefix, stream):
         self._print(output_prefix, end="")
-        if self.stream:
+        if stream:
             full_reply = ""
             reasoning_content = None
             printed_reasoning_prefix = False
@@ -217,6 +205,28 @@ class GoogleConnectionHandler(ConnectionHandler):
             self._print(full_reply)
 
         return full_reply, reasoning_content
+
+    def update_sys_instruction(self, sys_instruction:str):
+        self.config.system_instruction = sys_instruction
+        self.chat = self.client.chats.create(model=self.model_params.model, config=self.config)
+
+    @staticmethod
+    def _split_parts(parts):
+        """
+        Gemini 把思考内容和正文分别放在 content.parts 里，用 part.thought 标记区分，
+        而不是像 DeepSeek/本地模型那样用独立字段或内联标签。这里按标记拆成 (正文, 推理) 两段文本。
+        """
+        reply_text = ""
+        thought_text = ""
+        for part in (parts or []):
+            text = getattr(part, "text", None)
+            if not text:
+                continue
+            if getattr(part, "thought", False):
+                thought_text += text
+            else:
+                reply_text += text
+        return reply_text, (thought_text or None)
 
 
 

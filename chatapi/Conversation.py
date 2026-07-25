@@ -14,11 +14,13 @@ class Conversation:
     last_reasoning_content: str | None = None
 
     def __init__(self, connection_handler: ConnectionHandler,
-                 json_object: bool = False):
+                 stream: bool = False, json_object: bool = False):
 
         self.connection_handler = connection_handler
         self.history = MessageHistory(connection_handler.model_params)
         self.model_hp = self.history.model_hp
+
+        self.stream = stream
 
         self.response_format = {"type": "text"}
         if json_object:
@@ -45,10 +47,11 @@ class Conversation:
             if user_msg is not None:
                 self.send(user_msg)
 
-    def send(self, message, output_prefix="Assistant："):
+    def send(self, message, output_prefix="Assistant：", stream:Optional[bool]=None):
         self.history.user_message(message)
 
-        self.last_reply = self.connection_handler.send(self.history, output_prefix)
+        self.last_reply = self.connection_handler.send(self.history, output_prefix,
+                                                       stream=stream if stream is not None else self.stream)
         self.last_reasoning_content = getattr(self.connection_handler, "last_reasoning_content", None)
 
         self.history.assistant_message(self.last_reply, reasoning_content=self.last_reasoning_content)
@@ -56,7 +59,6 @@ class Conversation:
         return self.last_reply
 
     def conversation_history(self):
-        print(self.history.session_content)
         return self.history.session_content
 
     def save_to(self, file_path: str):
