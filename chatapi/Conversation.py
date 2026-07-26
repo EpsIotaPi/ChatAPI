@@ -34,7 +34,8 @@ class Conversation:
         return item
 
     def init_session(self, prompt: Optional[Prompt] = None, session_title="New Session", **kwargs):
-        self.history.init_session(session_title, language=prompt.language)
+        self.history.set_session_title(session_title)
+        self.history.set_language(language=prompt.language)
 
         if prompt is not None:
             self.history.set_system_prompt(prompt.system_message(), prompt_name=prompt.name)

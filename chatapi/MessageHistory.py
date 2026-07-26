@@ -20,14 +20,11 @@ SEED = random.randint(0, 2**32 - 1)
 
 class MessageHistory:
     model_hp: ModelHyperParams
-    _session_content: Optional[dict] = None
+    _session_content: dict
 
-    def __init__(self, hp: ModelHyperParams):
+    def __init__(self, hp: ModelHyperParams, session_title="New Session"):
         self.model_hp = hp
 
-    def init_session(self, session_title="New Session", language="en"):
-        if self._session_content is not None:
-            raise Exception("MessageHistory already init")
         timestamp = utc_timestamp()
         self._session_content = {
             "version": "1.0",
@@ -41,12 +38,18 @@ class MessageHistory:
             "metadata": {
                 "prompt_name": None,
                 "model": self.model_hp.model_alias,
-                "language": language,
+                "language": None,
                 "hp": self.model_hp.record()
             },
 
             "messages": []
         }
+
+    def set_session_title(self, title: str):
+        self._session_content["session"]["title"] = title
+
+    def set_language(self, language="en"):
+        self._session_content["metadata"]["language"] = language
 
     @classmethod
     def load(cls, data: Union[str, Path, dict]):
@@ -56,18 +59,12 @@ class MessageHistory:
 
         data["session"]["updated_at"] = utc_timestamp()
 
-        metadata = data["metadata"]
-
-        lang = metadata["language"]
-
-        model = metadata["model"]
-
-        hp_record = metadata["hp"]
+        model = data["metadata"]["model"]
+        hp_record = data["metadata"]["hp"]
 
         model_hp = ModelHyperParams.from_record(model, hp_record)
 
         obj = cls(hp=model_hp)
-
         obj._session_content = data
 
         return obj
