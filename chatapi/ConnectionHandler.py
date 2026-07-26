@@ -26,6 +26,9 @@ class ConnectionHandler:
     def set_silence_mode(self):
         self.silence = True
 
+    def set_response_format(self, response_format:dict):
+        self.response_format = response_format
+
     def send(self, message_history:MessageHistory, output_prefix="Assistant：", stream=False):
         """
         把 message 与 hp 整理成 send_content，并向LLM请求 response，用 response_handler 处理成 full_reply

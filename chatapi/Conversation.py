@@ -14,17 +14,16 @@ class Conversation:
     last_reasoning_content: str | None = None
 
     def __init__(self, connection_handler: ConnectionHandler,
-                 stream: bool = False, json_object: bool = False):
+                 stream: bool = False, response_format: Optional[dict] = None):
 
         self.connection_handler = connection_handler
+        if response_format is not None:
+            self.connection_handler.set_response_format(response_format)
+        
         self.history = MessageHistory(connection_handler.model_params)
         self.model_hp = self.history.model_hp
 
         self.stream = stream
-
-        self.response_format = {"type": "text"}
-        if json_object:
-            self.response_format = {"type": "json"}
 
     @classmethod
     def from_history(cls, history: MessageHistory, connection:ConnectionParams):
@@ -39,9 +38,6 @@ class Conversation:
 
         if prompt is not None:
             self.history.set_system_prompt(prompt.system_message(), prompt_name=prompt.name)
-
-            if prompt.json_object:
-                self.response_format = {"type": "json_object"}
 
             user_msg = prompt.user_message(**kwargs)
             if user_msg is not None:

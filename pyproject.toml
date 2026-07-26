@@ -4,12 +4,12 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "chatapi"
-version = "0.1.1"
+version = "0.1.2"
 description = "Thin Python wrapper around multiple LLM providers (OpenAI-compatible APIs and Google Gemini) for interactive chat and batch experiments."
 requires-python = ">=3.10"
 dependencies = [
-    "openai>=1.0,<2",
-    "google-genai>=1.0,<2",
+    "openai>=1.0",
+    "google-genai>=1.0",
     "pandas>=2.0",
     "tqdm>=4.60",
     "pyparsing>=3.0",

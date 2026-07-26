@@ -21,7 +21,6 @@ class PromptManager(object):
 
 
 class Prompt(object):
-    json_object: bool
 
     def __init__(self, name:str, content: dict, lang="en", base_dir=None):
         self.name = name
@@ -34,8 +33,6 @@ class Prompt(object):
         self._system_message = None
         self._user_message = None
         self.set_language(lang)
-
-        self.json_object = content["json_object"] if "json_object" in content.keys() else False
 
 
 

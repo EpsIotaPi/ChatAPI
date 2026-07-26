@@ -28,7 +28,6 @@
     "AQ_Joint": {
       "description": "Argument Quality Assessment: Joint",
       "variables": ["text"],
-      "json_object": true,
       "languages": {
         "en": {
           "path_system": "quality_prompt_LDR.en.txt",

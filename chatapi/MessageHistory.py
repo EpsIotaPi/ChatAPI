@@ -20,7 +20,7 @@ SEED = random.randint(0, 2**32 - 1)
 
 class MessageHistory:
     model_hp: ModelHyperParams
-    _session_content: dict = None
+    _session_content: Optional[dict] = None
 
     def __init__(self, hp: ModelHyperParams):
         self.model_hp = hp
