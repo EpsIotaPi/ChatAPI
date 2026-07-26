@@ -1,39 +1,26 @@
-from typing import Optional
-from pyparsing import Dict
+from dataclasses import dataclass, asdict, fields
 
-
+@dataclass
 class ModelHyperParams:
-    model: str
-    base_url: str
-    temperature: Optional[float]
-    top_p: Optional[float]
-    random_seed: Optional[int]
+    # 添加新的超参数时，需要更新：OpenAIConnectionHandler.send
 
-    """
-    添加新的超参数时，需要更新：
-    1. ModelHyperParams
-    2. Conversation.from_hparams, Conversation.send
-    """
+    model_alias: str
 
-    def __init__(self, model, temperature = None, top_p= None, random_seed = None):
-        self.model = model
-        self.temperature = temperature
-        self.top_p = top_p
-        self.random_seed = random_seed
+    temperature: float | None = None
+    top_p: float| None = None
+    frequency_penalty: float | None = None
+    presence_penalty: float | None = None
+
+    random_seed: int | None = None
+    max_completion_tokens: int | None = None
+    reasoning_effort: str | None = None  # "none", "minimal", "low", "medium", "high", "xhigh", "max"
 
     @classmethod
-    def from_record(cls, model, hp_record: Dict):
+    def from_record(cls, model_alias: str, hp_record: dict):
+        # hp_record 的 key 需与本类字段名一致；用 .get() 兜底，避免记录里缺字段时报 KeyError
+        hp_field_names = {f.name for f in fields(cls) if f.name != "model_alias"}
+        kwargs = {name: hp_record.get(name) for name in hp_field_names}
+        return cls(model_alias=model_alias, **kwargs)
 
-        return cls(model,
-                   temperature=hp_record["temperature"],
-                   top_p=hp_record["top_p"],
-                   random_seed=hp_record["top_p"])
-
-    def record(self):
-        records = {
-            "temperature": self.temperature,
-            "top_p": self.top_p,
-            "random_seed":self.random_seed,
-        }
-
-        return records
+    def record(self) -> dict:
+        return asdict(self)

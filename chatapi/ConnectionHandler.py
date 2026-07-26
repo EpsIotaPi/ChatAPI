@@ -17,10 +17,9 @@ class ConnectionHandler:
         self.response_format = {"type": "text"}
 
     @classmethod
-    def from_hparams(cls, model:str, connection: ConnectionParams,
-                     temperature = None, top_p = None, random_seed = None, **kwargs):
+    def from_hparams(cls, model_alias:str, connection: ConnectionParams, **kwargs):
+        hp = ModelHyperParams(model_alias=model_alias, **kwargs)
 
-        hp = ModelHyperParams(model=model, temperature=temperature, top_p=top_p, random_seed=random_seed)
         return cls(hp, connection, **kwargs)
 
     def set_silence_mode(self):
@@ -39,8 +38,8 @@ class ConnectionHandler:
         """
         send_content = {
             "messages": message_history.messages,
-            "model": self.model_params.model,
-            "temperature": self.model_params.model,
+            "model": self.model_params.model_alias,
+            "temperature": self.model_params.model_alias,
             "top_p": self.model_params.top_p,
             "seed": self.model_params.random_seed,
             "stream": stream,
@@ -91,10 +90,17 @@ class OpenAIConnectionHandler(ConnectionHandler):
 
         response = self.client.chat.completions.create(
             messages=messages,
-            model=self.model_params.model,
+
+            model=self.model_params.model_alias,
             temperature=self.model_params.temperature,
             top_p=self.model_params.top_p,
+            frequency_penalty=self.model_params.frequency_penalty,
+            presence_penalty=self.model_params.presence_penalty,
+
             seed=self.model_params.random_seed,
+            max_completion_tokens = self.model_params.max_completion_tokens,
+            reasoning_effort = self.model_params.reasoning_effort,
+
             stream=stream,
             response_format=self.response_format
         )
@@ -151,7 +157,7 @@ class GoogleConnectionHandler(ConnectionHandler):
         self.last_reasoning_content = None
 
         thinking_config = None
-        if include_thoughts and self.model_params.model.startswith(self._THINKING_CAPABLE_PREFIX):
+        if include_thoughts and self.model_params.model_alias.startswith(self._THINKING_CAPABLE_PREFIX):
             thinking_config = types.ThinkingConfig(include_thoughts=True)
 
         self.config = types.GenerateContentConfig(temperature=self.model_params.temperature,
@@ -159,7 +165,7 @@ class GoogleConnectionHandler(ConnectionHandler):
                                                   seed=self.model_params.random_seed,
                                                   thinking_config=thinking_config)
 
-        self.chat = self.client.chats.create(model=self.model_params.model, config=self.config)
+        self.chat = self.client.chats.create(model=self.model_params.model_alias, config=self.config)
 
     def send(self, message_history:MessageHistory, output_prefix="Assistant：", stream=False):
         sys_prompt = message_history.sys_prompt
@@ -211,7 +217,7 @@ class GoogleConnectionHandler(ConnectionHandler):
 
     def update_sys_instruction(self, sys_instruction:str):
         self.config.system_instruction = sys_instruction
-        self.chat = self.client.chats.create(model=self.model_params.model, config=self.config)
+        self.chat = self.client.chats.create(model=self.model_params.model_alias, config=self.config)
 
     @staticmethod
     def _split_parts(parts):

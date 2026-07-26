@@ -40,7 +40,7 @@ class MessageHistory:
 
             "metadata": {
                 "prompt_name": None,
-                "model": self.model_hp.model,
+                "model": self.model_hp.model_alias,
                 "language": language,
                 "hp": self.model_hp.record()
             },
