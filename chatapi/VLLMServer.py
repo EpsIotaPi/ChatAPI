@@ -26,7 +26,7 @@ class VLLMServer:
     """
 
     def __init__(self, model: str, host: str = "127.0.0.1", port: int = 8000,
-                 extra_args: list = None, startup_timeout: float = 300.0,
+                 extra_args: list | None = None, startup_timeout: float = 300.0,
                  poll_interval: float = 2.0, verbose: bool = True):
         self.model = model
         self.host = host
@@ -122,9 +122,9 @@ class VLLMServer:
             f"等待 vLLM 就绪超时（{self.startup_timeout}s），已终止子进程。\n{self._tail_output()}"
         )
 
-    def _tail_output(self, n_lines: int = 20) -> str:
-        lines = list(self._output_buffer)[-n_lines:]
-        return "vllm serve 输出尾部：\n" + "\n".join(lines)
+    def _tail_output(self, n_lines: int | None = None) -> str:
+        lines = list(self._output_buffer) if n_lines is None else list(self._output_buffer)[-n_lines:]
+        return f"vllm serve 完整输出（最多保留最近 {self._output_buffer.maxlen} 行）：\n" + "\n".join(lines)
 
     @staticmethod
     def _print_separator():
