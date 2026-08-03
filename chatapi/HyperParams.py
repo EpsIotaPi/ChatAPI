@@ -15,6 +15,8 @@ class ModelHyperParams:
     max_completion_tokens: int | None = None
     reasoning_effort: str | None = None  # "none", "minimal", "low", "medium", "high", "xhigh", "max"
 
+    extra_body: dict | None = None
+
     @classmethod
     def from_record(cls, model_alias: str, hp_record: dict):
         # hp_record 的 key 需与本类字段名一致；用 .get() 兜底，避免记录里缺字段时报 KeyError

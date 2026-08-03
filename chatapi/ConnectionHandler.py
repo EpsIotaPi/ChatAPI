@@ -101,6 +101,8 @@ class OpenAIConnectionHandler(ConnectionHandler):
             max_completion_tokens = self.model_params.max_completion_tokens,
             reasoning_effort = self.model_params.reasoning_effort,
 
+            extra_body=self.model_params.extra_body,
+
             stream=stream,
             response_format=self.response_format
         )
