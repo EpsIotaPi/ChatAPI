@@ -30,8 +30,9 @@
       "variables": ["text"],
       "languages": {
         "en": {
-          "path_system": "quality_prompt_LDR.en.txt",
-          "user": "Evaluate the argument quality of the following text: \n{{text}}"
+          "system_path": "quality_prompt_LDR.en.txt",
+          "user": "Evaluate the argument quality of the following text: \n{{text}}",
+          "schema_path": "quality_schema.json"
         }
       }
     }

@@ -14,11 +14,9 @@ class Conversation:
     last_reasoning_content: str | None = None
 
     def __init__(self, connection_handler: ConnectionHandler,
-                 stream: bool = False, response_format: Optional[dict] = None):
+                 stream: bool = False):
 
         self.connection_handler = connection_handler
-        if response_format is not None:
-            self.connection_handler.set_response_format(response_format)
         
         self.history = MessageHistory(connection_handler.model_params)
         self.model_hp = self.history.model_hp
@@ -39,6 +37,7 @@ class Conversation:
 
         if prompt is not None:
             self.history.set_system_prompt(prompt.system_message(), prompt_name=prompt.name)
+            self.set_response_format(prompt.response_format)
 
             user_msg = prompt.user_message(**kwargs)
             if user_msg is not None:
@@ -57,6 +56,9 @@ class Conversation:
 
     def conversation_history(self):
         return self.history.session_content
+
+    def set_response_format(self, response_format: dict):
+        self.connection_handler.set_response_format(response_format)
 
     def save_to(self, file_path: str):
         with open(file_path, "w") as f:

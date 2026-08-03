@@ -1,7 +1,7 @@
 import json
 import os
 
-_DEFAULT_PROMPTS_DIR = os.path.join(os.path.dirname(__file__), "prompts")
+_DEFAULT_PROMPTS_DIR = os.path.join(str(os.path.dirname(__file__)), "prompts")
 _DEFAULT_PROMPTS_PATH = os.path.join(_DEFAULT_PROMPTS_DIR, "prompts.json")
 
 
@@ -32,9 +32,8 @@ class Prompt(object):
         self._prompt = content["languages"]
         self._system_message = None
         self._user_message = None
+        self._schema = None
         self.set_language(lang)
-
-
 
     def set_language(self, lang):
         if lang not in self.language_list:
@@ -45,17 +44,22 @@ class Prompt(object):
 
         if "system" in self._prompt[self.language].keys():
             self._system_message = self._prompt[self.language]["system"]
-        elif "path_system" in self._prompt[self.language].keys():
-            path = os.path.join(self._base_dir, self._prompt[self.language]["path_system"])
+        elif "system_path" in self._prompt[self.language].keys():
+            path = os.path.join(self._base_dir, self._prompt[self.language]["system_path"])
             with open(path, "r") as f:
                 self._system_message = f.read()
 
         if "user" in self._prompt[self.language].keys():
             self._user_message = self._prompt[self.language]["user"]
-        elif "path_user" in self._prompt[self.language].keys():
-            path = os.path.join(self._base_dir, self._prompt[self.language]["path_user"])
+        elif "user_path" in self._prompt[self.language].keys():
+            path = os.path.join(self._base_dir, self._prompt[self.language]["user_path"])
             with open(path, "r") as f:
                 self._user_message = f.read()
+
+        if "user" in self._prompt[self.language].keys():
+            path = os.path.join(self._base_dir, self._prompt[self.language]["schema_path"])
+            with open(path, "r") as f:
+                self._schema = json.load(f)
 
 
     def system_message(self):
@@ -73,3 +77,10 @@ class Prompt(object):
                 message = message.replace(placeholder, kwargs[var])
 
             return message
+
+    @property
+    def response_format(self):
+        if self._schema is None:
+            return {"type": "text"}
+        return {"type": "json_schema", "json_schema": {"name": "aq_scores", "schema": self._schema, "strict": True}}
+
