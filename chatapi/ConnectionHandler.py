@@ -80,6 +80,7 @@ class OpenAIConnectionHandler(ConnectionHandler):
         self.client = OpenAI(api_key=connection_params.api_key,
                              base_url=connection_params.base_url)
         self.last_reasoning_content = None
+        self.last_logprobs = None
 
     def send(self, message_history: MessageHistory, output_prefix="Assistant：", stream=False):
         msg_history = message_history.messages
@@ -101,6 +102,9 @@ class OpenAIConnectionHandler(ConnectionHandler):
             max_completion_tokens = self.model_params.max_completion_tokens,
             reasoning_effort = self.model_params.reasoning_effort,
 
+            logprobs=self.model_params.logprobs,
+            top_logprobs=self.model_params.top_logprobs if self.model_params.logprobs else None,
+
             extra_body=self.model_params.extra_body,
 
             stream=stream,
@@ -110,7 +114,7 @@ class OpenAIConnectionHandler(ConnectionHandler):
         if stream and self.silence:
             print("You set up silence mode, but stream response still will be printed.")
 
-        full_reply, self.last_reasoning_content = self._response_handler(response, output_prefix, stream)
+        full_reply, self.last_reasoning_content, self.last_logprobs = self._response_handler(response, output_prefix, stream)
 
         return full_reply
 
@@ -118,9 +122,13 @@ class OpenAIConnectionHandler(ConnectionHandler):
         if stream:
             full_reply = ""
             reasoning_content = None
+            logprobs_entries = []
             for chunk in response:
                 if len(chunk.choices) != 0:
                     delta = chunk.choices[0].delta
+                    chunk_logprobs = getattr(chunk.choices[0].logprobs, "content", None) if chunk.choices[0].logprobs else None
+                    if chunk_logprobs:
+                        logprobs_entries.extend(chunk_logprobs)
                     if not delta:
                         continue
                     reasoning_delta = getattr(delta, "reasoning_content", None)
@@ -137,13 +145,36 @@ class OpenAIConnectionHandler(ConnectionHandler):
                         print(delta.content, end="")
                         full_reply += delta.content
             self._print("")
+            logprobs = self._serialize_logprobs(logprobs_entries)
         else:
             message = response.choices[0].message
             full_reply = message.content or ""
             reasoning_content = getattr(message, "reasoning_content", None) or None
+            choice_logprobs = getattr(response.choices[0].logprobs, "content", None) if response.choices[0].logprobs else None
+            logprobs = self._serialize_logprobs(choice_logprobs)
             self._print(full_reply)
 
-        return full_reply, reasoning_content
+        return full_reply, reasoning_content, logprobs
+
+    @staticmethod
+    def _serialize_logprobs(entries):
+        """
+        把 openai SDK 返回的 ChatCompletionTokenLogprob 对象列表转换成可 JSON 序列化的 dict 列表，
+        便于随消息一起落盘到 MessageHistory。
+        """
+        if not entries:
+            return None
+        return [
+            {
+                "token": entry.token,
+                "logprob": entry.logprob,
+                "top_logprobs": [
+                    {"token": t.token, "logprob": t.logprob}
+                    for t in entry.top_logprobs
+                ] if getattr(entry, "top_logprobs", None) else None,
+            }
+            for entry in entries
+        ]
 
 
 class GoogleConnectionHandler(ConnectionHandler):

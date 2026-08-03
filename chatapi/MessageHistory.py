@@ -69,12 +69,13 @@ class MessageHistory:
 
         return obj
 
-    def _save_message(self, role, message:str, reasoning_content:Optional[str]=None):
+    def _save_message(self, role, message:str, reasoning_content:Optional[str]=None, logprobs:Optional[list]=None):
         data = {
             "id": "msg_{:03d}".format(len(self._session_content["messages"])),
             "role": role,
             "content": message,
             "reasoning_content": reasoning_content,
+            "logprobs": logprobs,
             "created_at": utc_timestamp(),
         }
         self._session_content["messages"].append(data)
@@ -92,8 +93,8 @@ class MessageHistory:
     def user_message(self, message: str):
         self._save_message(role="user", message=message)
 
-    def assistant_message(self, message: str, reasoning_content:Optional[str]=None):
-        self._save_message(role="assistant", message=message, reasoning_content=reasoning_content)
+    def assistant_message(self, message: str, reasoning_content:Optional[str]=None, logprobs:Optional[list]=None):
+        self._save_message(role="assistant", message=message, reasoning_content=reasoning_content, logprobs=logprobs)
 
     @property
     def session_content(self):

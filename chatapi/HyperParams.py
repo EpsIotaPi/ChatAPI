@@ -15,6 +15,9 @@ class ModelHyperParams:
     max_completion_tokens: int | None = None
     reasoning_effort: str | None = None  # "none", "minimal", "low", "medium", "high", "xhigh", "max"
 
+    logprobs: bool = False
+    top_logprobs: int | None = None
+
     extra_body: dict | None = None
 
     @classmethod

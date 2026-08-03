@@ -12,6 +12,7 @@ class Conversation:
     silence_mode: bool
     last_reply: str = ""
     last_reasoning_content: str | None = None
+    last_logprobs: list | None = None
 
     def __init__(self, connection_handler: ConnectionHandler,
                  stream: bool = False):
@@ -49,8 +50,10 @@ class Conversation:
         self.last_reply = self.connection_handler.send(self.history, output_prefix,
                                                        stream=stream if stream is not None else self.stream)
         self.last_reasoning_content = getattr(self.connection_handler, "last_reasoning_content", None)
+        self.last_logprobs = getattr(self.connection_handler, "last_logprobs", None)
 
-        self.history.assistant_message(self.last_reply, reasoning_content=self.last_reasoning_content)
+        self.history.assistant_message(self.last_reply, reasoning_content=self.last_reasoning_content,
+                                        logprobs=self.last_logprobs)
 
         return self.last_reply
 
