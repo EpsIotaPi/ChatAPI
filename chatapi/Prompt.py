@@ -56,7 +56,7 @@ class Prompt(object):
             with open(path, "r") as f:
                 self._user_message = f.read()
 
-        if "user" in self._prompt[self.language].keys():
+        if "schema_path" in self._prompt[self.language].keys():
             path = os.path.join(self._base_dir, self._prompt[self.language]["schema_path"])
             with open(path, "r") as f:
                 self._schema = json.load(f)
