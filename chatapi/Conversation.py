@@ -18,11 +18,14 @@ class Conversation:
                  stream: bool = False):
 
         self.connection_handler = connection_handler
-        
+
         self.history = MessageHistory(connection_handler.model_params)
         self.model_hp = self.history.model_hp
 
         self.stream = stream
+        # 每个 Conversation 自己持有 response_format，不再写回共享的 connection_handler，
+        # 这样同一个 handler 被多个线程/Conversation 并发复用时不会互相覆盖对方的设置。
+        self.response_format = {"type": "text"}
 
     @classmethod
     def from_history(cls, history: MessageHistory, connection:ConnectionParams):
@@ -47,10 +50,12 @@ class Conversation:
     def send(self, message, output_prefix="Assistant：", stream:Optional[bool]=None):
         self.history.user_message(message)
 
-        self.last_reply = self.connection_handler.send(self.history, output_prefix,
-                                                       stream=stream if stream is not None else self.stream)
-        self.last_reasoning_content = getattr(self.connection_handler, "last_reasoning_content", None)
-        self.last_logprobs = getattr(self.connection_handler, "last_logprobs", None)
+        result = self.connection_handler.send(self.history, output_prefix,
+                                               stream=stream if stream is not None else self.stream,
+                                               response_format=self.response_format)
+        self.last_reply = result.reply
+        self.last_reasoning_content = result.reasoning_content
+        self.last_logprobs = result.logprobs
 
         self.history.assistant_message(self.last_reply, reasoning_content=self.last_reasoning_content,
                                         logprobs=self.last_logprobs)
@@ -61,7 +66,7 @@ class Conversation:
         return self.history.session_content
 
     def set_response_format(self, response_format: dict):
-        self.connection_handler.set_response_format(response_format)
+        self.response_format = response_format
 
     def save_to(self, file_path: str):
         with open(file_path, "w") as f:

@@ -1,3 +1,7 @@
+import threading
+import weakref
+from typing import NamedTuple, Optional
+
 from openai import OpenAI
 from google import genai
 from google.genai import types
@@ -7,6 +11,17 @@ from chatapi.HyperParams import ModelHyperParams
 from chatapi.ConnectionParams import ConnectionParams
 
 
+class SendResult(NamedTuple):
+    """
+    单次 send() 的结果。之前 reasoning_content/logprobs 是先写回 self.last_*
+    再由调用方读回，多线程共享同一个 handler 实例时会被其他线程的请求覆盖；
+    改成随返回值传递后，每次调用的结果只属于这次调用，天然线程安全。
+    """
+    reply: str
+    reasoning_content: Optional[str] = None
+    logprobs: Optional[list] = None
+
+
 class ConnectionHandler:
     def __init__(self, model_params:ModelHyperParams, connection_params:ConnectionParams,
                  silence=False):
@@ -14,6 +29,9 @@ class ConnectionHandler:
         self.connection_params = connection_params
 
         self.silence = silence
+        # 仅作为 send() 未显式传入 response_format 时的默认值。多个调用方共享同一个
+        # handler 实例时不应再依赖 set_response_format() 修改这个默认值，而应该
+        # 通过 send() 的 response_format 参数显式传入，避免并发请求互相覆盖。
         self.response_format = {"type": "text"}
 
     @classmethod
@@ -28,14 +46,18 @@ class ConnectionHandler:
     def set_response_format(self, response_format:dict):
         self.response_format = response_format
 
-    def send(self, message_history:MessageHistory, output_prefix="Assistant：", stream=False):
+    def send(self, message_history:MessageHistory, output_prefix="Assistant：", stream=False,
+              response_format:Optional[dict]=None) -> SendResult:
         """
         把 message 与 hp 整理成 send_content，并向LLM请求 response，用 response_handler 处理成 full_reply
         :param message_history:
-        :param message:
         :param output_prefix:
+        :param stream:
+        :param response_format: 本次请求使用的 response_format，缺省时才回落到 self.response_format
         :return:
         """
+        response_format = response_format if response_format is not None else self.response_format
+
         send_content = {
             "messages": message_history.messages,
             "model": self.model_params.model_alias,
@@ -43,7 +65,7 @@ class ConnectionHandler:
             "top_p": self.model_params.top_p,
             "seed": self.model_params.random_seed,
             "stream": stream,
-            "response_format": self.response_format
+            "response_format": response_format
         }
 
         response = "this is the response from LLM"
@@ -52,7 +74,7 @@ class ConnectionHandler:
             print("You set up silence mode, but stream response still will be printed.")
 
         full_reply = self._response_handler(response, output_prefix, stream)
-        return full_reply
+        return SendResult(full_reply)
 
     def _response_handler(self, response, output_prefix, stream):
         """
@@ -79,10 +101,11 @@ class OpenAIConnectionHandler(ConnectionHandler):
 
         self.client = OpenAI(api_key=connection_params.api_key,
                              base_url=connection_params.base_url)
-        self.last_reasoning_content = None
-        self.last_logprobs = None
 
-    def send(self, message_history: MessageHistory, output_prefix="Assistant：", stream=False):
+    def send(self, message_history: MessageHistory, output_prefix="Assistant：", stream=False,
+              response_format:Optional[dict]=None) -> SendResult:
+        response_format = response_format if response_format is not None else self.response_format
+
         msg_history = message_history.messages
         messages = [
             {k: m[k] for k in  ("role", "content", "reasoning_content") if k in m and m[k] is not None}
@@ -108,15 +131,15 @@ class OpenAIConnectionHandler(ConnectionHandler):
             extra_body=self.model_params.extra_body,
 
             stream=stream,
-            response_format=self.response_format
+            response_format=response_format
         )
 
         if stream and self.silence:
             print("You set up silence mode, but stream response still will be printed.")
 
-        full_reply, self.last_reasoning_content, self.last_logprobs = self._response_handler(response, output_prefix, stream)
+        full_reply, reasoning_content, logprobs = self._response_handler(response, output_prefix, stream)
 
-        return full_reply
+        return SendResult(full_reply, reasoning_content, logprobs)
 
     def _response_handler(self, response, output_prefix, stream):
         if stream:
@@ -187,23 +210,38 @@ class GoogleConnectionHandler(ConnectionHandler):
         super().__init__(model_params, connection_params, silence)
 
         self.client = genai.Client(api_key=connection_params.api_key)
-        self.last_reasoning_content = None
 
         thinking_config = None
         if include_thoughts and self.model_params.model_alias.startswith(self._THINKING_CAPABLE_PREFIX):
             thinking_config = types.ThinkingConfig(include_thoughts=True)
 
-        self.config = types.GenerateContentConfig(temperature=self.model_params.temperature,
-                                                  top_p=self.model_params.top_p,
-                                                  seed=self.model_params.random_seed,
-                                                  thinking_config=thinking_config)
+        self._base_config_kwargs = dict(temperature=self.model_params.temperature,
+                                        top_p=self.model_params.top_p,
+                                        seed=self.model_params.random_seed,
+                                        thinking_config=thinking_config)
 
-        self.chat = self.client.chats.create(model=self.model_params.model_alias, config=self.config)
+        # google.genai 的 Chat 对象自己持有整段对话历史，且系统提示只能在创建会话时
+        # 设置一次，无法像 OpenAI 那样按次传入。因此这里不能像其它 transient 数据一样
+        # 简单地"改成按参数传递"，而是需要让并发的多个 message_history 各自拥有独立的
+        # chat 会话，不共享 self.chat，一个 handler 才能安全地被多个线程/Conversation
+        # 复用。用 WeakKeyDictionary 是因为 key 是 message_history 本身，其生命周期由
+        # 调用方（Conversation）掌控，handler 不必手动清理已结束会话的缓存。
+        self._chat_sessions = weakref.WeakKeyDictionary()
+        self._chat_sessions_lock = threading.Lock()
 
-    def send(self, message_history:MessageHistory, output_prefix="Assistant：", stream=False):
-        sys_prompt = message_history.sys_prompt
-        if sys_prompt is not None and len(message_history) == 2: # 第一次提示的时候更新。此时有一条系统提示，和一条普通提示
-            self.update_sys_instruction(sys_prompt)
+    def _get_chat_session(self, message_history: MessageHistory):
+        with self._chat_sessions_lock:
+            chat = self._chat_sessions.get(message_history)
+            if chat is None:
+                config = types.GenerateContentConfig(system_instruction=message_history.sys_prompt,
+                                                     **self._base_config_kwargs)
+                chat = self.client.chats.create(model=self.model_params.model_alias, config=config)
+                self._chat_sessions[message_history] = chat
+            return chat
+
+    def send(self, message_history:MessageHistory, output_prefix="Assistant：", stream=False,
+              response_format:Optional[dict]=None) -> SendResult:
+        chat = self._get_chat_session(message_history)
 
         message = message_history.last_message
 
@@ -211,13 +249,13 @@ class GoogleConnectionHandler(ConnectionHandler):
             print("You set up silence mode, but stream response still will be printed.")
 
         if stream:
-            response = self.chat.send_message_stream(message)
+            response = chat.send_message_stream(message)
         else:
-            response = self.chat.send_message(message)
+            response = chat.send_message(message)
 
-        full_reply, self.last_reasoning_content = self._response_handler(response, output_prefix, stream)
+        full_reply, reasoning_content = self._response_handler(response, output_prefix, stream)
 
-        return full_reply
+        return SendResult(full_reply, reasoning_content, None)
 
     def _response_handler(self, response, output_prefix, stream):
         self._print(output_prefix, end="")
@@ -247,10 +285,6 @@ class GoogleConnectionHandler(ConnectionHandler):
             self._print(full_reply)
 
         return full_reply, reasoning_content
-
-    def update_sys_instruction(self, sys_instruction:str):
-        self.config.system_instruction = sys_instruction
-        self.chat = self.client.chats.create(model=self.model_params.model_alias, config=self.config)
 
     @staticmethod
     def _split_parts(parts):

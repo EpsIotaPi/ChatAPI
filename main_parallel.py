@@ -20,12 +20,12 @@ max_workers = min(16, max(1, n))
 
 connection_params = DeepSeekConnectionParams()
 connection_params.deepseek_pro()
-hp = ModelHyperParams(model=connection_params.model_alias, temperature=0, random_seed=114514)
+hp = ModelHyperParams(model_alias=connection_params.model_alias, temperature=0, random_seed=114514)
 prompt = PromptManager().get_prompt("AQ_Joint", lang="en")
-connection_handler = OpenAIConnectionHandler(hp, connection_params, silence=True, stream=False)
+connection_handler = OpenAIConnectionHandler(hp, connection_params, silence=True)
 
 save_file_name = "test"
-save_file_name += hp.model
+save_file_name += hp.model_alias
 
 
 def single_conversation(idx_item):
@@ -43,7 +43,7 @@ def single_conversation(idx_item):
     result = {
         "id": idx + 1,
         "argument": argument,
-        "annotator": hp.model,
+        "annotator": hp.model_alias,
         "combined_quality": 0,
         "logical_quality": annotation["Logical"],
         "dialectical_quality": annotation["Dialectical"],
