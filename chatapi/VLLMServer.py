@@ -26,7 +26,7 @@ class VLLMServer:
     """
 
     def __init__(self, model: str, host: str = "127.0.0.1", port: int = 8000,
-                 extra_args: list | None = None, startup_timeout: float = 300.0,
+                 extra_args: list | None = None, startup_timeout: float = 300.0, env = None,
                  poll_interval: float = 2.0, verbose: bool = True):
         self.model = model
         self.host = host
@@ -35,6 +35,7 @@ class VLLMServer:
         self.startup_timeout = startup_timeout
         self.poll_interval = poll_interval
         self.verbose = verbose
+        self.env = env
 
         self._process = None
         self._atexit_registered = False
@@ -65,6 +66,7 @@ class VLLMServer:
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
+            env=self.env,
         )
 
         self._reader_thread = threading.Thread(target=self._drain_output, daemon=True)
