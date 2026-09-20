@@ -15,7 +15,7 @@ elif not os.path.isfile(file_path):
 
 connection_params = DeepSeekConnectionParams()
 connection_params.deepseek_pro()
-hp = ModelHyperParams(model=connection_params.model_alias, temperature=0, random_seed=114514)
+hp = ModelHyperParams(model=connection_params.model_alias, temperature=0, random_seed=516199152)
 connection_handler = OpenAIConnectionHandler(hp, connection_params, silence=False, stream=True)
 
 prompt = PromptManager().get_prompt("test", lang="zh")
