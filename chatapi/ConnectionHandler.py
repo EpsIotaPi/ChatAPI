@@ -61,7 +61,7 @@ class ConnectionHandler:
         send_content = {
             "messages": message_history.messages,
             "model": self.model_params.model_alias,
-            "temperature": self.model_params.model_alias,
+            "temperature": self.model_params.temperature,
             "top_p": self.model_params.top_p,
             "seed": self.model_params.random_seed,
             "stream": stream,
@@ -96,11 +96,14 @@ class ConnectionHandler:
 
 class OpenAIConnectionHandler(ConnectionHandler):
     def __init__(self, model_params:ModelHyperParams, connection_params:ConnectionParams,
-                 silence=False):
+                 silence=False, merge_system_into_user=False):
         super().__init__(model_params, connection_params, silence)
 
         self.client = OpenAI(api_key=connection_params.api_key,
                              base_url=connection_params.base_url)
+
+        # 有些模型不支持 system 角色，置 True 时把 system 提示词并入首条 user 消息
+        self.merge_system_into_user = merge_system_into_user
 
     def send(self, message_history: MessageHistory, output_prefix="Assistant：", stream=False,
               response_format:Optional[dict]=None) -> SendResult:
@@ -111,6 +114,8 @@ class OpenAIConnectionHandler(ConnectionHandler):
             {k: m[k] for k in  ("role", "content", "reasoning_content") if k in m and m[k] is not None}
             for m in msg_history
         ]
+        if self.merge_system_into_user:
+            messages = self._merge_system_into_user(messages)
 
         response = self.client.chat.completions.create(
             messages=messages,
@@ -178,6 +183,24 @@ class OpenAIConnectionHandler(ConnectionHandler):
             self._print(full_reply)
 
         return full_reply, reasoning_content, logprobs
+
+    @staticmethod
+    def _merge_system_into_user(messages):
+        """
+        把首条 system 提示词并入首条 user 消息（拼在正文前），并移除原 system 条目，
+        供不支持 system 角色的模型使用。没有 user 消息时直接把 system 改写成 user。
+        messages 里的 dict 是 send() 里新建的副本，就地修改不会污染 MessageHistory。
+        """
+        if not messages or messages[0]["role"] != "system":
+            return messages
+
+        system_content = messages[0]["content"]
+        rest = messages[1:]
+        for m in rest:
+            if m["role"] == "user":
+                m["content"] = "{}\n\n{}".format(system_content, m["content"])
+                return rest
+        return [{"role": "user", "content": system_content}] + rest
 
     @staticmethod
     def _serialize_logprobs(entries):
